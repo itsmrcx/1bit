@@ -12,7 +12,7 @@
 
 
 
-mBIT is a Progressive Web App (PWA) — a lightweight Nostr client:  [https://twentyonex.github.io/mbit/](https://github.com/itsmrcx/mbit)
+mBIT is a Progressive Web App (PWA) — a lightweight Nostr client:  https://github.com/itsmrcx/mbit
 
 
 
