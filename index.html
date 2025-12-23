@@ -186,7 +186,7 @@
             justify-content: center; 
             gap: 6px; 
             padding: 15px 0; 
-            z-index: 9999; /* Increased Z-Index */
+            z-index: 9999; 
             box-shadow: 0 -2px 10px rgba(0,0,0,0.5); 
             font-family: inherit; 
         }
@@ -444,7 +444,19 @@
         const defaultRelays = ['wss://relay.damus.io', 'wss://relay.primal.net', 'wss://nos.lol', 'wss://relay.mostr.pub', 'wss://trending.relays.land'];
         
         let savedRelays;
-        try { savedRelays = JSON.parse(localStorage.getItem('mbit_relays')) || defaultRelays; } catch(e) { savedRelays = defaultRelays; }
+        try {
+            savedRelays = JSON.parse(localStorage.getItem('mbit_relays')) || defaultRelays;
+            // Force add trending relay if missing
+            if (!savedRelays.includes('wss://trending.relays.land')) {
+                savedRelays.push('wss://trending.relays.land');
+                localStorage.setItem('mbit_relays', JSON.stringify(savedRelays));
+            }
+            if (!savedRelays.includes('wss://relay.mostr.pub')) {
+                savedRelays.push('wss://relay.mostr.pub');
+                localStorage.setItem('mbit_relays', JSON.stringify(savedRelays));
+            }
+        } catch(e) { savedRelays = defaultRelays; }
+
         let filterSettings;
         try { filterSettings = JSON.parse(localStorage.getItem('mbit_filters')) || { hideNsfw: false, blockedTags: [] }; } catch(e) { filterSettings = { hideNsfw: false, blockedTags: [] }; }
         
