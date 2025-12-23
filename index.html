@@ -236,8 +236,8 @@
                 <input type="text" id="new-relay" placeholder="wss://..." style="margin-bottom:0; width: 80%;">
                 <button onclick="addRelay()" style="width: 18%; margin-left: 2%;">ADD</button>
             </div>
-            <!-- Added Reconnect Button -->
-            <button onclick="savedRelays.forEach(connectToRelay)" class="small secondary" style="width:100%; margin-top:10px;">RECONNECT ALL</button>
+            <!-- Improved Reconnect Button -->
+            <button onclick="forceReconnectAll()" class="small secondary" style="width:100%; margin-top:10px;">RECONNECT ALL</button>
             <br><button class="small secondary" onclick="goHome()">CLOSE</button>
         </div>
 
@@ -451,7 +451,6 @@
             if (!Array.isArray(savedRelays) || savedRelays.length === 0) {
                 savedRelays = defaultRelays;
             }
-            // Force add trending relay if missing from existing list
             if (!savedRelays.includes('wss://trending.relays.land')) {
                 savedRelays.push('wss://trending.relays.land');
                 localStorage.setItem('mbit_relays', JSON.stringify(savedRelays));
@@ -477,7 +476,6 @@
         let bookmarks = new Set();
         try { bookmarks = new Set(JSON.parse(localStorage.getItem('mbit_bookmarks')) || []); } catch(e){}
         
-        // PERSISTENT CONTACTS
         let myContacts = new Set();
         try {
             const stored = localStorage.getItem('mbit_contacts');
@@ -518,7 +516,7 @@
         document.getElementById('nsfw-toggle').checked = filterSettings.hideNsfw;
         renderFilterList();
         updateNwcStatus();
-        renderRelays(); // Render relays immediately!
+        renderRelays(); // FORCE RENDER ON STARTUP
 
         function goHome() {
             ['panel-relays', 'panel-identity', 'panel-my-profile', 'panel-user-profile', 'panel-settings', 'panel-search', 'panel-notifications', 'panel-thread', 'panel-bookmarks'].forEach(p => document.getElementById(p).classList.add('hidden'));
@@ -535,7 +533,7 @@
             });
             document.getElementById(id).classList.remove('hidden');
             if (id === 'panel-my-profile') loadMyHistory();
-            if (id === 'panel-relays') renderRelays();
+            if (id === 'panel-relays') renderRelays(); // Ensure relays render when panel opens
             currentViewedProfile = null;
             currentThreadId = null;
         }
@@ -560,7 +558,7 @@
                 if(!url.startsWith('wss://')) url = 'wss://' + url; 
                 savedRelays.push(url); 
                 localStorage.setItem('mbit_relays', JSON.stringify(savedRelays)); 
-                connectToRelay(url); 
+                connectToRelay(url, true); 
                 document.getElementById('new-relay').value = ''; 
                 renderRelays();
             } 
@@ -574,11 +572,24 @@
         }
 
         // --- RELAY & FEED LOGIC ---
-        function connectToRelay(url) {
+        function forceReconnectAll() {
+            Object.values(sockets).forEach(ws => ws.close());
+            savedRelays.forEach(url => connectToRelay(url, true));
+        }
+
+        function connectToRelay(url, force = false) {
+            // If already connected/connecting and not forced, skip
+            if (sockets[url] && (sockets[url].readyState === 0 || sockets[url].readyState === 1) && !force) return;
+            
+            if (sockets[url]) sockets[url].close();
+
             try {
-                const ws = new WebSocket(url); sockets[url] = ws;
+                const ws = new WebSocket(url); 
+                sockets[url] = ws;
+                renderRelays(); // Update to show "Connecting" (Yellow)
+
                 ws.onopen = () => { 
-                    renderRelays(); // Update UI status
+                    renderRelays(); // Update to show "ON" (Green)
                     if (url === 'wss://trending.relays.land') {
                         ws.send(JSON.stringify(["REQ", "trending_sub", { kinds:[1], limit:100 }]));
                     } else {
@@ -589,8 +600,15 @@
                         ws.send(JSON.stringify(["REQ", "my_contacts", { kinds:[3], authors:[myPubKey], limit:1 }]));
                     }
                 };
+                
                 ws.onerror = () => { renderRelays(); };
-                ws.onclose = () => { renderRelays(); };
+                
+                ws.onclose = () => { 
+                    renderRelays(); // Update to show "OFF" (Red)
+                    // Auto-reconnect after 5 seconds
+                    setTimeout(() => connectToRelay(url), 5000);
+                };
+
                 ws.onmessage = (msg) => {
                     const data = JSON.parse(msg.data);
                     if (data[0] === 'EOSE') { 
@@ -630,7 +648,6 @@
             const isTrendingSource = sourceRelay === 'wss://trending.relays.land';
             
             if(processedIds.has(ev.id)) {
-                // If we have it, but now it comes from trending, UPDATE IT
                 if (isTrendingSource) {
                     const existing = events.find(e => e.id === ev.id);
                     if (existing) {
@@ -706,7 +723,6 @@
             } else {
                 list = events.filter(ev => ev._isTrending === true);
                 if (list.length === 0) {
-                     // Fallback: If no trending data yet, show first 10 global to avoid empty screen
                      if (events.length > 0) list = events.slice(0, 10);
                      else {
                         container.innerHTML = '<div style="padding:20px; text-align:center; opacity:0.6;">Waiting for trending data...<br>(Ensure wss://trending.relays.land is connected)</div>';
@@ -926,7 +942,7 @@
             else document.getElementById('nsec-display-container').classList.add('hidden'); 
         }
         
-        savedRelays.forEach(connectToRelay);
+        savedRelays.forEach(url => connectToRelay(url));
         goHome();
     </script>
 </body>
