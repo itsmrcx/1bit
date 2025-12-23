@@ -70,7 +70,7 @@
             font-family: "Courier New", Courier, monospace;
             font-size: var(--base-font-size);
             padding: 20px; 
-            padding-bottom: 90px; 
+            padding-bottom: 90px;
             margin: 0; 
             min-height: 100vh;
             transition: font-size 0.2s ease;
@@ -174,22 +174,7 @@
         .notif-item:hover { background: rgba(255,255,255,0.05); }
         .notif-icon { margin-right: 15px; font-size: 1.5em; width: 25px; text-align: center; }
 
-        /* FIXED STICKY FOOTER STYLE */
-        .sticky-footer { 
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            width: 100%; 
-            background-color: var(--footer-bg); 
-            border-top: 1px solid var(--border-color); 
-            display: flex; 
-            justify-content: center; 
-            gap: 6px; 
-            padding: 15px 0; 
-            z-index: 9999; 
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.5); 
-            font-family: inherit; 
-        }
+        .sticky-footer { position: fixed; bottom: 0; left: 0; width: 100%; background-color: var(--footer-bg); border-top: 1px solid var(--border-color); display: flex; justify-content: center; gap: 6px; padding: 15px 0; z-index: 9999; box-shadow: 0 -2px 10px rgba(0,0,0,0.5); font-family: inherit; }
         .footer-item { font-size: 0.85em; cursor: pointer; text-align: center; transition: 0.3s; color: var(--text-color); text-decoration: none; opacity: 0.7; }
         .footer-item:hover { opacity: 1; text-decoration: underline; text-shadow: var(--glow); }
 
@@ -205,7 +190,7 @@
 
         #reply-context-bar { background-color: var(--reply-indicator); padding: 10px; margin-bottom: 10px; font-size: 0.8em; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid var(--text-color); }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
+        
         /* ZAP MODAL STYLES */
         .zap-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
         .zap-preset { background: var(--input-bg); border: 1px solid #F7931A; color: #F7931A; padding: 10px 0; text-align: center; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; }
@@ -219,7 +204,6 @@
     <header>
         <h1>mBIT</h1>
         <div class="nav-bar">
-            <!-- Removed #FEED from here as requested -->
             <span class="nav-item" onclick="togglePanel('panel-identity')">#LOG IN</span>
             <span>|</span>
             <span class="nav-item" onclick="togglePanel('panel-my-profile')">#MY PROFILE</span>
@@ -269,6 +253,7 @@
         <div id="panel-my-profile" class="dropdown-panel hidden">
             <button class="back-btn" onclick="goHome()">&lt; #BACK TO FEED</button>
             <div id="my-profile-header" style="text-align:center;"></div>
+            
             <div id="profile-editor" class="hidden" style="text-align:left; margin:15px 0; border:1px dotted var(--border-color); padding:10px;">
                 <label>Name:</label><input type="text" id="p-display-name" placeholder="e.g. Satoshi Nakamoto">
                 <label>Bio:</label><textarea id="p-about" rows="3"></textarea>
@@ -381,10 +366,11 @@
             <div id="bookmarks-feed">Loading...</div>
         </div>
 
-        <!-- MAIN FEED -->
+        <!-- MAIN FEED STUFF -->
         <div id="feed-container">
             <div id="new-btn" class="hidden" onclick="mergeQueue()">>> LOAD NEW SIGNALS <<</div>
             
+            <!-- NEW TABBED FEED INTERFACE -->
             <div class="profile-subnav" style="margin-bottom: 20px;">
                 <button id="ftab-following" class="subnav-btn" onclick="switchFeedTab('following')">NOTES</button>
                 <button id="ftab-trending" class="subnav-btn active" onclick="switchFeedTab('trending')">TRENDING</button>
@@ -394,9 +380,10 @@
         </div>
     </div>
 
-    <!-- FAB & MODALS -->
+    <!-- FLOATING ACTION BUTTON -->
     <div class="fab-btn" onclick="openComposer()">+</div>
 
+    <!-- COMPOSER MODAL (POPUP) -->
     <div id="composer-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <div id="reply-context-bar" class="hidden">
@@ -410,7 +397,8 @@
             </div>
         </div>
     </div>
-
+    
+    <!-- ZAP MODAL -->
     <div id="zap-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 400px;">
             <h3 style="color:#F7931A; text-align:center; margin-top:0;">⚡ ZAP</h3>
@@ -450,28 +438,28 @@
     </div>
 
     <script>
+        // UPDATED RELAYS LIST
         const defaultRelays = ['wss://relay.damus.io', 'wss://relay.primal.net', 'wss://nos.lol', 'wss://relay.mostr.pub', 'wss://trending.relays.land'];
         
         let savedRelays;
         try { 
             savedRelays = JSON.parse(localStorage.getItem('mbit_relays'));
-            if(!Array.isArray(savedRelays) || savedRelays.length === 0) savedRelays = defaultRelays;
-            
-            // ENSURE NEW RELAYS ARE PRESENT
-            if (!savedRelays.includes('wss://trending.relays.land')) {
-                savedRelays.push('wss://trending.relays.land');
-                localStorage.setItem('mbit_relays', JSON.stringify(savedRelays));
+            if (!Array.isArray(savedRelays) || savedRelays.length === 0) {
+                savedRelays = defaultRelays;
             }
-            if (!savedRelays.includes('wss://relay.mostr.pub')) {
-                savedRelays.push('wss://relay.mostr.pub');
-                localStorage.setItem('mbit_relays', JSON.stringify(savedRelays));
-            }
+            // Ensure new relays are present in saved list
+            ['wss://relay.mostr.pub', 'wss://trending.relays.land'].forEach(r => {
+                if(!savedRelays.includes(r)) savedRelays.push(r);
+            });
+            localStorage.setItem('mbit_relays', JSON.stringify(savedRelays));
         } catch(e) { savedRelays = defaultRelays; }
 
         let filterSettings;
         try { filterSettings = JSON.parse(localStorage.getItem('mbit_filters')) || { hideNsfw: false, blockedTags: [] }; } catch(e) { filterSettings = { hideNsfw: false, blockedTags: [] }; }
         
+        // NWC STORAGE
         let nwcString = localStorage.getItem('mbit_nwc') || null;
+
         const sockets = {};
         
         let events = [], incomingBuffer = [], pendingEvents = []; 
@@ -483,10 +471,11 @@
         let bookmarks = new Set();
         try { bookmarks = new Set(JSON.parse(localStorage.getItem('mbit_bookmarks')) || []); } catch(e){}
         
-        let myContacts = new Set();
+        // CONTACTS PERSISTENCE
+        let myContacts = new Set(); 
         try {
-            const stored = localStorage.getItem('mbit_contacts');
-            if(stored) myContacts = new Set(JSON.parse(stored));
+            const c = localStorage.getItem('mbit_contacts');
+            if(c) myContacts = new Set(JSON.parse(c));
         } catch(e) {}
 
         let eventStats = {};
@@ -501,9 +490,9 @@
         let currentUserTab = 'notes'; 
         let currentMyTab = 'notes';
         let currentNotifTab = 'all';
-        let currentFeedTab = 'trending';
+        let currentFeedTab = 'trending'; // NEW TAB STATE
 
-        // Init
+        // Init Theme
         function changeTheme(theme) {
             document.documentElement.removeAttribute('data-theme');
             if (theme !== 'dark') document.documentElement.setAttribute('data-theme', theme);
@@ -512,6 +501,7 @@
         changeTheme(localStorage.getItem('mbit_theme') || 'matrix');
         document.getElementById('theme-selector').value = localStorage.getItem('mbit_theme') || 'matrix';
 
+        // Init Font Size
         function changeFontSize(size) {
             document.documentElement.style.setProperty('--base-font-size', size + 'px');
             localStorage.setItem('mbit_fontsize', size);
@@ -523,9 +513,7 @@
         document.getElementById('nsfw-toggle').checked = filterSettings.hideNsfw;
         renderFilterList();
         updateNwcStatus();
-        
-        // IMMEDIATE RENDER
-        renderRelays();
+        renderRelays(); // IMMEDIATE RENDER
 
         function goHome() {
             ['panel-relays', 'panel-identity', 'panel-my-profile', 'panel-user-profile', 'panel-settings', 'panel-search', 'panel-notifications', 'panel-thread', 'panel-bookmarks'].forEach(p => document.getElementById(p).classList.add('hidden'));
@@ -533,7 +521,7 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
             currentViewedProfile = null;
             currentThreadId = null;
-            renderGlobalFeed(); 
+            renderGlobalFeed(); // Force Feed Render
         }
 
         function togglePanel(id) {
@@ -547,38 +535,41 @@
             currentThreadId = null;
         }
 
-        // --- RELAYS ---
+        // --- RELAY MANAGEMENT (Original Robust Logic) ---
         function renderRelays() { 
             const list = document.getElementById('relay-list');
-            if(list) {
-                list.innerHTML = savedRelays.map(url => { 
-                    const isOpen = sockets[url] && sockets[url].readyState === 1; 
-                    const color = isOpen ? '#00FF41' : 'red';
-                    const txt = isOpen ? '#ON' : '#OFF';
-                    return `<div class="relay-item"><div class="relay-content"><span style="color:${color}; font-weight:bold; margin-right:5px;">${txt}</span><span class="relay-url" title="${url}">${url}</span></div><button class="small danger" style="width: 30px; flex-shrink: 0;" onclick="removeRelay('${url}')">X</button></div>`; 
-                }).join('');
-            }
+            if(list) list.innerHTML = savedRelays.map(url => { 
+                const isOpen = sockets[url] && sockets[url].readyState === 1; 
+                const status = isOpen ? '<span style="color:#00FF41">#ON</span>' : '<span style="color:red">#OFF</span>';
+                return `<div class="relay-item"><div class="relay-content">${status}<span class="relay-url" title="${url}">${url}</span></div><button class="small danger" style="width: 30px; flex-shrink: 0;" onclick="removeRelay('${url}')">X</button></div>`; 
+            }).join(''); 
         }
 
         function addRelay() { let url = document.getElementById('new-relay').value.trim(); if(url){ if(!url.startsWith('wss://')) url = 'wss://' + url; savedRelays.push(url); localStorage.setItem('mbit_relays', JSON.stringify(savedRelays)); connectToRelay(url); document.getElementById('new-relay').value = ''; renderRelays(); } }
         function removeRelay(url) { savedRelays = savedRelays.filter(r => r !== url); localStorage.setItem('mbit_relays', JSON.stringify(savedRelays)); if(sockets[url]) sockets[url].close(); renderRelays(); }
 
-        // --- FEED LOGIC (Reverting to original connection logic) ---
+        // --- WEB SOCKET LOGIC (Enhanced for Trending) ---
         function connectToRelay(url) {
             try {
                 const ws = new WebSocket(url); sockets[url] = ws;
                 ws.onopen = () => { 
                     renderRelays();
+                    // 1. Trending Relay Logic
                     if (url === 'wss://trending.relays.land') {
-                         ws.send(JSON.stringify(["REQ", "trending_sub", { kinds:[1], limit:100 }]));
+                        ws.send(JSON.stringify(["REQ", "trending_sub", { kinds:[1], limit:100 }]));
                     } else {
-                         ws.send(JSON.stringify(["REQ", "g", { kinds:[1,6], limit:40 }])); 
+                        // 2. Standard Feed Logic
+                        ws.send(JSON.stringify(["REQ", "g", { kinds:[1,6], limit:40 }])); 
                     }
+                    // 3. User Data Logic
                     if(myPubKey) {
                         fetchProfile(myPubKey);
                         ws.send(JSON.stringify(["REQ", "my_contacts", { kinds:[3], authors:[myPubKey], limit:1 }]));
                     }
                 };
+                ws.onerror = () => { renderRelays(); };
+                ws.onclose = () => { renderRelays(); };
+                
                 ws.onmessage = (msg) => {
                     const data = JSON.parse(msg.data);
                     if (data[0] === 'EOSE') { if (data[1] === 'sub_me') { if (myEvents.length === 0) document.getElementById('my-feed').innerHTML = '<div style="text-align:center; padding:20px; opacity:0.6;">No notes found.</div>'; } }
@@ -586,43 +577,46 @@
                         const subId = data[1];
                         const ev = data[2];
                         processEventStats(ev); 
-                        if (subId === 'my_meta' || subId === 'user_meta') processProfileEvent(ev, subId === 'my_meta');
+                        
+                        // Metadata & Contacts
+                        if (subId === 'my_meta' || subId === 'user_meta' || subId.startsWith('m_')) {
+                             try { profiles[ev.pubkey].meta = JSON.parse(ev.content); } catch(e) { initProfileData(ev.pubkey); profiles[ev.pubkey].meta = JSON.parse(ev.content); }
+                             if(ev.pubkey === myPubKey) updateMyProfileHeader();
+                             if(ev.pubkey === currentViewedProfile) renderUserProfileHeader(ev.pubkey);
+                        }
+
+                        // Explicit Contact handling
+                        if (subId === 'my_contacts' || (ev.kind === 3 && ev.pubkey === myPubKey)) processProfileEvent(ev, true);
                         if (subId === 'my_followers' || subId === 'user_followers') processProfileEvent(ev, subId === 'my_followers'); 
-                        
-                        // Trending Logic Insertion
+
+                        // Feed Routing
                         if (subId === 'trending_sub') handleGlobalEvent(ev, 'wss://trending.relays.land');
-                        
                         if (subId === 'g') handleGlobalEvent(ev, url);
+                        
                         if (subId === 'sub_me') handleMyEvent(ev);
                         if (subId === 'sub_user') handleUserEvent(ev);
                         if (subId === 'search_sub') handleSearchEvent(ev);
                         if (subId === 'notif_sub') handleNotifEvent(ev);
                         
-                        // Thread
-                        if (subId === 'thread_main' || subId === 'thread_children' || subId.startsWith('thread_ancestor')) {
-                            handleThreadEvent(ev);
-                        }
-
-                        // Contacts
-                        if (subId === 'my_contacts' || (ev.kind === 3 && ev.pubkey === myPubKey)) processProfileEvent(ev, true);
-
+                        // Thread Logic
+                        if (subId.startsWith('thread_')) handleThreadEvent(ev);
+                        
                         if (subId === 'bookmarks_sub') handleBookmarkEvent(ev);
-                        if (subId.startsWith('m_')) { try { profiles[ev.pubkey].meta = JSON.parse(ev.content); } catch(e) { initProfileData(ev.pubkey); profiles[ev.pubkey].meta = JSON.parse(ev.content); } renderNotifications(); }
                     }
                 };
-            } catch(e) { console.log(e); }
+            } catch(e) { renderRelays(); }
         }
         
         function handleContacts(ev) { if(ev.kind===3) { const pTags = ev.tags.filter(t=>t[0]==='p').map(t=>t[1]); myContacts = new Set(pTags); if(currentViewedProfile) renderUserProfileHeader(currentViewedProfile); } }
         
-        // FIXED DUPLICATE HANDLING FOR TRENDING
+        // ENHANCED GLOBAL HANDLER
         function handleGlobalEvent(ev, sourceRelay) { 
             ev._relay = sourceRelay;
-            const isTrending = (sourceRelay === 'wss://trending.relays.land');
+            const isTrendingSource = (sourceRelay === 'wss://trending.relays.land');
             
             if(processedIds.has(ev.id)) {
-                // If it's already there, but now coming from trending relay, update the flag
-                if (isTrending) {
+                // If we already have it, but now it comes from trending, mark it!
+                if(isTrendingSource) {
                     const existing = events.find(e => e.id === ev.id);
                     if(existing) {
                         existing._isTrending = true;
@@ -632,8 +626,8 @@
                 return; 
             }
             
-            if(isTrending) ev._isTrending = true;
-
+            if(isTrendingSource) ev._isTrending = true;
+            
             processedIds.add(ev.id); 
             fetchProfileIfNeeded(ev.pubkey); 
             incomingBuffer.push(ev); 
@@ -664,6 +658,7 @@
             window.scrollTo(0,0); 
         }
 
+        // --- NEW TABBED FEED LOGIC ---
         function switchFeedTab(tab) {
             currentFeedTab = tab;
             ['ftab-following', 'ftab-trending'].forEach(id => document.getElementById(id).classList.remove('active'));
@@ -672,41 +667,42 @@
         }
 
         function renderGlobalFeed() { 
-            let list = [];
+            let list = events;
             const container = document.getElementById('feed');
             
             if (currentFeedTab === 'following') {
-                if (!myPubKey) {
-                     container.innerHTML = '<div style="padding:20px; text-align:center; opacity:0.6;">Login to see posts from people you follow.</div>';
-                     return;
+                if(!myPubKey) {
+                    container.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.6">Login to view following feed.</div>';
+                    return;
                 }
-                if (myContacts.size > 0) {
-                    list = events.filter(ev => myContacts.has(ev.pubkey));
-                    if (list.length === 0) {
-                         container.innerHTML = '<div style="padding:20px; text-align:center; opacity:0.6;">No recent notes from your contacts found.<br>Try adding relays or check the Trending tab.</div>';
-                         return;
-                    }
-                } else {
-                    container.innerHTML = '<div style="padding:20px; text-align:center; opacity:0.6;">Loading contacts...<br>(Or you are following 0 people)</div>';
+                if(myContacts.size === 0) {
+                     container.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.6">Loading contacts...</div>';
+                }
+                // Filter by contacts
+                list = events.filter(ev => myContacts.has(ev.pubkey));
+                if(list.length === 0 && myContacts.size > 0) {
+                    container.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.6">No recent notes from contacts.</div>';
                     return;
                 }
             } else {
+                // Trending
                 list = events.filter(ev => ev._isTrending === true);
-                if (list.length === 0) {
-                     if (events.length > 0) list = events.slice(0, 10); // Fallback
-                     else {
-                        container.innerHTML = '<div style="padding:20px; text-align:center; opacity:0.6;">Waiting for trending data...</div>';
+                if(list.length === 0) {
+                    // Fallback to avoid empty screen
+                    if(events.length > 0) list = events.slice(0,10);
+                    else {
+                        container.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.6">Waiting for trending data...</div>';
                         return;
-                     }
+                    }
                 }
             }
             container.innerHTML = list.map(generatePostHTML).join('');
         }
-        
+
         async function toggleFollow(pubkey) { if(!myPubKey) return alert("Login required"); if(myContacts.has(pubkey)) myContacts.delete(pubkey); else myContacts.add(pubkey); renderUserProfileHeader(pubkey); const tags = Array.from(myContacts).map(p => ['p', p]); const event = { kind: 3, created_at: Math.floor(Date.now()/1000), tags: tags, content: "", pubkey: myPubKey }; await signAndBroadcast(event); }
         async function signAndBroadcast(event) { if (authMode === 'extension') event = await window.nostr.signEvent(event); else { event.id = window.NostrTools.getEventHash(event); event.sig = window.NostrTools.signEvent(event, myPrivKey); } Object.values(sockets).forEach(ws => { if(ws.readyState === 1) ws.send(JSON.stringify(["EVENT", event])); }); return event; }
         async function sendNote() { const content = document.getElementById('msg-input').value; if (!content) return; let tags = []; if (replyContext) { tags.push(['e', replyContext.id, '', 'reply']); tags.push(['p', replyContext.pubkey]); } const event = { kind: 1, created_at: Math.floor(Date.now()/1000), tags: tags, content: content, pubkey: myPubKey }; await signAndBroadcast(event); document.getElementById('msg-input').value = ""; closeComposer(); }
-        function login() { let k = document.getElementById('privkey-input').value.trim(); if(k.startsWith('nsec')) k = window.NostrTools.nip19.decode(k).data; localStorage.setItem('nostr_privkey', k); localStorage.setItem('nostr_pubkey', window.NostrTools.getPublicKey(k)); localStorage.setItem('nostr_mode', 'local'); location.reload(); }
+        function login() { let k = document.getElementById('privkey-input').value.trim(); if (!k) return; if (k.startsWith('nsec')) k = window.NostrTools.nip19.decode(k).data; localStorage.setItem('nostr_privkey', k); localStorage.setItem('nostr_pubkey', window.NostrTools.getPublicKey(k)); localStorage.setItem('nostr_mode', 'local'); location.reload(); }
         function generateNewUser() { const sk = window.NostrTools.generatePrivateKey(); localStorage.setItem('nostr_privkey', sk); localStorage.setItem('nostr_pubkey', window.NostrTools.getPublicKey(sk)); localStorage.setItem('nostr_mode', 'local'); location.reload(); }
         
         async function saveProfile() { 
@@ -725,6 +721,7 @@
         }
 
         function toggleProfileEditor() { const editor = document.getElementById('dynamic-profile-editor'); if (editor) editor.classList.toggle('hidden'); }
+
         function logout() { localStorage.clear(); location.reload(); }
         function copyKey(id) { const el = document.getElementById(id); el.select(); navigator.clipboard.writeText(el.value); alert("COPIED"); }
         function copyToClipboard(text) { navigator.clipboard.writeText(text); alert("COPIED"); }
@@ -748,13 +745,16 @@
         function doBookmark(id) { if(bookmarks.has(id)) { bookmarks.delete(id); alert("Bookmark Removed"); } else { bookmarks.add(id); alert("Saved to Bookmarks"); } localStorage.setItem('mbit_bookmarks', JSON.stringify([...bookmarks])); if(!document.getElementById('panel-bookmarks').classList.contains('hidden')) openBookmarks(); if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); }
         function openBookmarks() { togglePanel('panel-bookmarks'); const ids = [...bookmarks]; if(ids.length === 0) { document.getElementById('bookmarks-feed').innerHTML = "No bookmarks yet."; return; } document.getElementById('bookmarks-feed').innerHTML = "Loading saved posts..."; bookmarkEvents = []; Object.values(sockets).forEach(ws => { if(ws.readyState === 1) ws.send(JSON.stringify(["REQ", "bookmarks_sub", { kinds: [1], ids: ids }])); }); }
         function handleBookmarkEvent(ev) { if(bookmarkEvents.some(e => e.id === ev.id)) return; bookmarkEvents.push(ev); bookmarkEvents.sort((a,b) => b.created_at - a.created_at); document.getElementById('bookmarks-feed').innerHTML = bookmarkEvents.map(generatePostHTML).join(''); fetchProfileIfNeeded(ev.pubkey); }
-        
-        // ZAP & NWC
-        function saveNWC() { const uri = document.getElementById('nwc-input').value.trim(); localStorage.setItem('mbit_nwc', uri); nwcString = uri; updateNwcStatus(); alert("Connected!"); }
-        function disconnectNWC() { localStorage.removeItem('mbit_nwc'); nwcString=null; updateNwcStatus(); alert("Disconnected"); }
+
+        /* --- ZAP & NWC LOGIC --- */
+        function saveNWC() {
+            const uri = document.getElementById('nwc-input').value.trim();
+            localStorage.setItem('mbit_nwc', uri); nwcString = uri; updateNwcStatus(); alert("Connected!");
+        }
+        function disconnectNWC() { localStorage.removeItem('mbit_nwc'); nwcString = null; updateNwcStatus(); alert("Disconnected"); }
         function updateNwcStatus() { const el = document.getElementById('nwc-status'); el.innerText = nwcString ? "Status: CONNECTED via NWC" : "Status: Not Connected"; el.style.color = nwcString ? "#00FF41" : "#F7931A"; }
         function parseNwcUri(uri) { try { const url = new URL(uri.replace('nostr+walletconnect:', 'https:')); return { pubkey: url.host, relay: url.searchParams.get('relay'), secret: url.searchParams.get('secret') }; } catch(e) { return null; } }
-        
+
         function handleZap(lud16, pubkey, eventId) { if (!lud16) return alert("No Lightning Address"); if (!myPubKey) return alert("Login first"); zapContext = { lud16, pubkey, eventId }; document.getElementById('zap-modal').classList.remove('hidden'); }
         function closeZapModal() { document.getElementById('zap-modal').classList.add('hidden'); zapContext = null; }
         function setZapAmount(a) { document.getElementById('zap-amt-val').innerText = a; document.getElementById('custom-zap-input').value = a; }
@@ -800,7 +800,10 @@
             } catch(e) { alert("Zap failed"); }
         }
 
-        // THREAD (SUPER PERMISSIVE)
+        function processEventStats(ev) { if (!ev || !ev.tags) return; const eTags = ev.tags.filter(t => t[0] === 'e'); eTags.forEach(t => { const targetId = t[1]; if (!eventStats[targetId]) eventStats[targetId] = { reply:0, repost:0, like:0, zap:0 }; if (ev.kind === 1) eventStats[targetId].reply++; if (ev.kind === 6) eventStats[targetId].repost++; if (ev.kind === 7) eventStats[targetId].like++; if (ev.kind === 9735) eventStats[targetId].zap++; updateCountDOM(targetId, 'reply'); updateCountDOM(targetId, 'repost'); updateCountDOM(targetId, 'like'); updateCountDOM(targetId, 'zap'); }); }
+        function updateCountDOM(id, type) { const el = document.getElementById(`s-${type}-${id}`); if (el && eventStats[id]) { el.innerText = eventStats[id][type]; } }
+
+        // --- SUPER PERMISSIVE THREAD LOGIC ---
         function getImmediateParentId(ev) {
             const replyTag = ev.tags.find(t => t[0] === 'e' && t[3] === 'reply');
             if (replyTag) return replyTag[1];
@@ -815,7 +818,7 @@
             currentThreadId = id;
             togglePanel('panel-thread');
             document.getElementById('thread-parent-container').innerHTML = ''; 
-            document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.6; padding:20px; text-align:center;">Loading conversation from relays...</div>';
+            document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.6; padding:20px; text-align:center;">Loading conversation...</div>';
             threadEvents = [];
             Object.values(sockets).forEach(ws => { if (ws.readyState === 1) { ws.send(JSON.stringify(["CLOSE", "thread_main"])); ws.send(JSON.stringify(["CLOSE", "thread_children"])); } });
             
@@ -840,46 +843,34 @@
             threadEvents.push(ev);
             fetchProfileIfNeeded(ev.pubkey);
             if (ev.id !== currentThreadId) {
-                const mainNote = threadEvents.find(e => e.id === currentThreadId);
-                if (mainNote) {
-                    const parentId = getImmediateParentId(mainNote);
-                    if (ev.id === parentId) {
-                        const grandParent = getImmediateParentId(ev);
-                        if(grandParent) fetchNote(grandParent);
-                    }
+                const main = threadEvents.find(e => e.id === currentThreadId);
+                if (main) {
+                    const pid = getImmediateParentId(main);
+                    if (ev.id === pid) { const gp = getImmediateParentId(ev); if(gp) fetchNote(gp); }
                 }
             }
             renderThreadView();
         }
 
         function renderThreadView() {
-            const mainNote = threadEvents.find(e => e.id === currentThreadId);
-            
-            let parentHtml = '';
-            if (mainNote) {
-                const pid = getImmediateParentId(mainNote);
+            const main = threadEvents.find(e => e.id === currentThreadId);
+            let pHtml = '';
+            if (main) {
+                const pid = getImmediateParentId(main);
                 if (pid) {
                     const parent = threadEvents.find(e => e.id === pid);
-                    if (parent) {
-                        parentHtml = `<div class="thread-ancestor"><div style="font-size:0.7em; opacity:0.7; margin-bottom:5px;">Replying to:</div>${generatePostHTML(parent)}</div>`;
-                    } else {
-                        parentHtml = `<div class="thread-ancestor" style="opacity:0.6; text-align:center; padding:10px;"><button class="small secondary" onclick="fetchNote('${pid}')">Load Parent Note</button></div>`;
-                    }
+                    pHtml = parent ? `<div class="thread-ancestor">${generatePostHTML(parent)}</div>` : `<div class="thread-ancestor" style="text-align:center;"><button class="small secondary" onclick="fetchNote('${pid}')">Load Parent</button></div>`;
                 }
-                document.getElementById('thread-parent-container').innerHTML = parentHtml + `<div class="thread-parent" style="background:rgba(255,255,255,0.03); border-left:4px solid var(--text-color); padding:15px;">${generatePostHTML(mainNote)}</div>`;
+                document.getElementById('thread-parent-container').innerHTML = pHtml + `<div class="thread-parent">${generatePostHTML(main)}</div>`;
             }
-
+            
             const replies = threadEvents.filter(e => e.id !== currentThreadId);
-            const ancestorId = mainNote ? getImmediateParentId(mainNote) : null;
-            const cleanReplies = replies.filter(e => e.id !== ancestorId);
-            cleanReplies.sort((a,b) => a.created_at - b.created_at);
-            if (cleanReplies.length > 0) document.getElementById('thread-replies-container').innerHTML = cleanReplies.map(generatePostHTML).join('');
-            else if (mainNote) document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.5; padding:20px; text-align:center;">No comments found yet.</div>';
+            const aid = main ? getImmediateParentId(main) : null;
+            const clean = replies.filter(e => e.id !== aid);
+            clean.sort((a,b) => a.created_at - b.created_at);
+            if (clean.length > 0) document.getElementById('thread-replies-container').innerHTML = clean.map(generatePostHTML).join('');
+            else if (main) document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.5; padding:20px; text-align:center;">No comments found yet.</div>';
         }
-
-        function processEventStats(ev) { if (!ev || !ev.tags) return; const eTags = ev.tags.filter(t => t[0] === 'e'); eTags.forEach(t => { const targetId = t[1]; if (!eventStats[targetId]) eventStats[targetId] = { reply:0, repost:0, like:0, zap:0 }; if (ev.kind === 1) eventStats[targetId].reply++; if (ev.kind === 6) eventStats[targetId].repost++; if (ev.kind === 7) eventStats[targetId].like++; if (ev.kind === 9735) eventStats[targetId].zap++; updateCountDOM(targetId, 'reply'); updateCountDOM(targetId, 'repost'); updateCountDOM(targetId, 'like'); updateCountDOM(targetId, 'zap'); }); }
-        function updateCountDOM(id, type) { const el = document.getElementById(`s-${type}-${id}`); if (el && eventStats[id]) { el.innerText = eventStats[id][type]; } }
-        async function doLike(id, pubkey) { if(!myPubKey) return alert("Login first"); likedPosts.add(id); localStorage.setItem('mbit_likes', JSON.stringify([...likedPosts])); if(!eventStats[id]) eventStats[id] = { reply:0, repost:0, like:0, zap:0 }; eventStats[id].like++; updateCountDOM(id, 'like'); if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); if(!document.getElementById('panel-thread').classList.contains('hidden')) viewThread(currentThreadId); const event = { kind: 7, created_at: Math.floor(Date.now()/1000), tags: [['e', id], ['p', pubkey]], content: "+", pubkey: myPubKey }; await signAndBroadcast(event); }
 
         function generatePostHTML(ev) { 
             if (isBlocked(ev)) return ''; 
@@ -900,10 +891,6 @@
         }
 
         if (myPubKey) { document.getElementById('login-form').classList.add('hidden'); document.getElementById('user-info').classList.remove('hidden'); document.getElementById('display-npub').value = window.NostrTools.nip19.npubEncode(myPubKey); if (myPrivKey) document.getElementById('display-nsec').value = window.NostrTools.nip19.nsecEncode(myPrivKey); else document.getElementById('nsec-display-container').classList.add('hidden'); }
-        
-        // IMMEDIATE RENDER CALL
-        renderRelays(); 
-        
         savedRelays.forEach(connectToRelay);
         goHome();
     </script>
