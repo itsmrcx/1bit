@@ -236,6 +236,8 @@
                 <input type="text" id="new-relay" placeholder="wss://..." style="margin-bottom:0; width: 80%;">
                 <button onclick="addRelay()" style="width: 18%; margin-left: 2%;">ADD</button>
             </div>
+            <!-- Added Reconnect Button -->
+            <button onclick="savedRelays.forEach(connectToRelay)" class="small secondary" style="width:100%; margin-top:10px;">RECONNECT ALL</button>
             <br><button class="small secondary" onclick="goHome()">CLOSE</button>
         </div>
 
@@ -542,8 +544,13 @@
             const list = document.getElementById('relay-list');
             if (!list) return;
             list.innerHTML = savedRelays.map(url => { 
-                const isOpen = sockets[url] && sockets[url].readyState === 1; 
-                return `<div class="relay-item"><div class="relay-content"><span style="color:${isOpen?'#00FF41':'red'}; font-weight:bold; margin-right:5px;">${isOpen?'#ON':'#OFF'}</span><span class="relay-url" title="${url}">${url}</span></div><button class="small danger" style="width: 30px; flex-shrink: 0;" onclick="removeRelay('${url}')">X</button></div>`; 
+                const ws = sockets[url];
+                let status = '<span style="color:red; font-weight:bold; margin-right:5px;">#OFF</span>';
+                if (ws) {
+                    if (ws.readyState === 1) status = '<span style="color:#00FF41; font-weight:bold; margin-right:5px;">#ON</span>';
+                    else if (ws.readyState === 0) status = '<span style="color:orange; font-weight:bold; margin-right:5px;">#...</span>';
+                }
+                return `<div class="relay-item"><div class="relay-content">${status}<span class="relay-url" title="${url}">${url}</span></div><button class="small danger" style="width: 30px; flex-shrink: 0;" onclick="removeRelay('${url}')">X</button></div>`;
             }).join(''); 
         }
 
@@ -623,6 +630,7 @@
             const isTrendingSource = sourceRelay === 'wss://trending.relays.land';
             
             if(processedIds.has(ev.id)) {
+                // If we have it, but now it comes from trending, UPDATE IT
                 if (isTrendingSource) {
                     const existing = events.find(e => e.id === ev.id);
                     if (existing) {
@@ -698,6 +706,7 @@
             } else {
                 list = events.filter(ev => ev._isTrending === true);
                 if (list.length === 0) {
+                     // Fallback: If no trending data yet, show first 10 global to avoid empty screen
                      if (events.length > 0) list = events.slice(0, 10);
                      else {
                         container.innerHTML = '<div style="padding:20px; text-align:center; opacity:0.6;">Waiting for trending data...<br>(Ensure wss://trending.relays.land is connected)</div>';
