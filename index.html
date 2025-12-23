@@ -103,7 +103,7 @@
         button.danger { background: #ff4141; color: white; }
         button.secondary { background: var(--post-border); color: var(--text-color); border: 1px solid var(--border-color); }
         
-        .relay-item { display: flex; align-items: center; justify-content: space-between; background: var(--input-bg); border: 1px solid var(--post-border); padding: 8px; margin-bottom: 5px; gap: 10px; color: var(--text-color); }
+        .relay-item { display: flex; align-items: center; justify-content: space-between; background: var(--input-bg); border: 1px solid var(--post-border); padding: 8px; margin-bottom: 5px; gap: 10px; }
         .relay-content { display: flex; align-items: center; overflow: hidden; white-space: nowrap; flex-grow: 1; }
         .relay-url { font-size: 0.8em; margin-left: 10px; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; }
 
@@ -191,7 +191,7 @@
         #reply-context-bar { background-color: var(--reply-indicator); padding: 10px; margin-bottom: 10px; font-size: 0.8em; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid var(--text-color); }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* ZAP MODAL STYLES (NEW) */
+        /* ZAP MODAL STYLES (ADDED) */
         .zap-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
         .zap-preset { background: var(--input-bg); border: 1px solid #F7931A; color: #F7931A; padding: 10px 0; text-align: center; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; }
         .zap-preset:hover { background: #F7931A; color: #fff; }
@@ -204,7 +204,7 @@
     <header>
         <h1>mBIT</h1>
         <div class="nav-bar">
-            <!-- REMOVED FEED LINK HERE AS REQUESTED -->
+            <!-- Removed #FEED Link -->
             <span class="nav-item" onclick="togglePanel('panel-identity')">#LOG IN</span>
             <span>|</span>
             <span class="nav-item" onclick="togglePanel('panel-my-profile')">#MY PROFILE</span>
@@ -292,10 +292,9 @@
                 <input type="range" id="font-size-slider" min="12" max="24" step="1" value="16" oninput="changeFontSize(this.value)" style="flex-grow: 1;">
                 <span style="font-size: 1.2em; opacity: 0.7;">BIG</span>
             </div>
-
-            <hr style="border:0; border-top:1px dashed var(--border-color); margin:20px 0;">
             
-            <!-- ADDED NWC SETTINGS -->
+            <hr style="border:0; border-top:1px dashed var(--border-color); margin:20px 0;">
+            <!-- ADDED NWC -->
             <h3>>> NOSTR WALLET CONNECT</h3>
             <div style="margin-bottom:15px;">
                 <input type="password" id="nwc-input" placeholder="nostr+walletconnect://...">
@@ -305,7 +304,7 @@
                 </div>
                 <div id="nwc-status" style="font-size:0.8em; margin-top:5px; color:#F7931A; opacity:0.8;">Status: Not Connected</div>
             </div>
-            
+
             <hr style="border:0; border-top:1px dashed var(--border-color); margin:20px 0;">
             <h3>>> CONTENT FILTERS</h3>
             <div style="margin-bottom: 15px;">
@@ -403,7 +402,7 @@
         </div>
     </div>
     
-    <!-- ADDED ZAP MODAL -->
+    <!-- ZAP MODAL (ADDED) -->
     <div id="zap-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 400px;">
             <h3 style="color:#F7931A; text-align:center; margin-top:0;">⚡ ZAP</h3>
@@ -452,7 +451,7 @@
             if (!Array.isArray(savedRelays) || savedRelays.length === 0) {
                 savedRelays = defaultRelays;
             }
-            // Ensure mandatory relays are present if missing
+            // Ensure new relays are present in saved list
             if (!savedRelays.includes('wss://trending.relays.land')) {
                 savedRelays.push('wss://trending.relays.land');
                 localStorage.setItem('mbit_relays', JSON.stringify(savedRelays));
@@ -480,7 +479,7 @@
         let bookmarks = new Set();
         try { bookmarks = new Set(JSON.parse(localStorage.getItem('mbit_bookmarks')) || []); } catch(e){}
         
-        // PERSISTENT CONTACTS
+        // Contacts Persist
         let myContacts = new Set(); 
         try {
             const stored = localStorage.getItem('mbit_contacts');
@@ -522,7 +521,7 @@
         document.getElementById('nsfw-toggle').checked = filterSettings.hideNsfw;
         renderFilterList();
         updateNwcStatus();
-        renderRelays(); // Render immediately
+        renderRelays(); // IMMEDIATE RENDER
 
         function goHome() {
             ['panel-relays', 'panel-identity', 'panel-my-profile', 'panel-user-profile', 'panel-settings', 'panel-search', 'panel-notifications', 'panel-thread', 'panel-bookmarks'].forEach(p => document.getElementById(p).classList.add('hidden'));
@@ -550,8 +549,7 @@
             if(list) {
                 list.innerHTML = savedRelays.map(url => { 
                     const isOpen = sockets[url] && sockets[url].readyState === 1; 
-                    const status = isOpen ? '<span style="color:#00FF41">#ON</span>' : '<span style="color:red">#OFF</span>';
-                    return `<div class="relay-item"><div class="relay-content">${status}<span class="relay-url" title="${url}">${url}</span></div><button class="small danger" style="width: 30px; flex-shrink: 0;" onclick="removeRelay('${url}')">X</button></div>`; 
+                    return `<div class="relay-item"><div class="relay-content"><span style="color:${isOpen?'#00FF41':'red'}; font-weight:bold; margin-right:5px;">${isOpen?'#ON':'#OFF'}</span><span class="relay-url" title="${url}">${url}</span></div><button class="small danger" style="width: 30px; flex-shrink: 0;" onclick="removeRelay('${url}')">X</button></div>`; 
                 }).join('');
             }
         }
@@ -658,7 +656,7 @@
             if (cleanReplies.length > 0) {
                 document.getElementById('thread-replies-container').innerHTML = cleanReplies.map(generatePostHTML).join('');
             } else if (mainNote) {
-                document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.5; padding:20px; text-align:center;">No comments found yet.</div>';
+                document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.5; padding:10px;">No replies found yet.</div>';
             }
         }
         /* --- END THREAD LOGIC --- */
@@ -728,11 +726,7 @@
         function handleSearchEvent(ev) {
             if (searchEvents.some(e => e.id === ev.id)) return;
             searchEvents.push(ev);
-            searchEvents.sort((a,b) => {
-                if(a.kind === 0 && b.kind !== 0) return -1;
-                if(b.kind === 0 && a.kind !== 0) return 1;
-                return b.created_at - a.created_at;
-            });
+            searchEvents.sort((a,b) => b.created_at - a.created_at);
             document.getElementById('search-results').innerHTML = searchEvents.map(ev => {
                 if(ev.kind === 0) return generateProfileCardHTML(ev);
                 return generatePostHTML(ev);
@@ -874,7 +868,7 @@
 
         if (myPubKey) { document.getElementById('login-form').classList.add('hidden'); document.getElementById('user-info').classList.remove('hidden'); document.getElementById('display-npub').value = window.NostrTools.nip19.npubEncode(myPubKey); if (myPrivKey) document.getElementById('display-nsec').value = window.NostrTools.nip19.nsecEncode(myPrivKey); else document.getElementById('nsec-display-container').classList.add('hidden'); }
         
-        // IMMEDIATE RELAY RENDER
+        // IMMEDIATE RENDER CALL
         renderRelays();
 
         savedRelays.forEach(connectToRelay);
