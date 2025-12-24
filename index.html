@@ -240,7 +240,8 @@
     <header>
         <h1>mBIT</h1>
         <div class="nav-bar">
-            <!-- Removed #FEED from here as requested -->
+            <span class="nav-item" onclick="goHome()">#FEED</span>
+            <span>|</span>
             <span class="nav-item" onclick="togglePanel('panel-identity')">#LOG IN</span>
             <span>|</span>
             <span class="nav-item" onclick="togglePanel('panel-my-profile')">#MY PROFILE</span>
@@ -258,11 +259,8 @@
                 <input type="text" id="new-relay" placeholder="wss://..." style="margin-bottom:0; width: 80%;">
                 <button onclick="addRelay()" style="width: 18%; margin-left: 2%;">ADD</button>
             </div>
-            
-            <hr style="border:0; border-top:1px dashed var(--post-border); margin: 20px 0;">
-            <button onclick="reconnectRelays()" style="width:100%;" class="secondary">↻ RECONNECT ALL</button>
-            
-            <br><button class="small secondary" onclick="goHome()">CLOSE</button>
+            <button class="secondary" onclick="reconnectRelays()" style="margin-top:10px; width: 100%;">↻ RECONNECT ALL</button>
+            <br><br><button class="small secondary" onclick="goHome()">CLOSE</button>
         </div>
 
         <!-- 2. KEYS PANEL -->
@@ -332,16 +330,13 @@
                 <input type="range" id="font-size-slider" min="12" max="24" step="1" value="16" oninput="changeFontSize(this.value)" style="flex-grow: 1;">
                 <span style="font-size: 1.2em; opacity: 0.7;">BIG</span>
             </div>
+            
             <hr style="border:0; border-top:1px dashed var(--border-color); margin:20px 0;">
             <h3>>> NOSTR WALLET CONNECT</h3>
-            <div style="margin-bottom:15px;">
-                <input type="password" id="nwc-input" placeholder="nostr+walletconnect://...">
-                <div style="display:flex; gap:10px;">
-                    <button onclick="saveNWC()">CONNECT</button>
-                    <button class="danger secondary" onclick="disconnectNWC()">DISCONNECT</button>
-                </div>
-                <div id="nwc-status" style="font-size:0.8em; margin-top:5px; color:#F7931A; opacity:0.8;">Status: Not Connected</div>
-            </div>
+            <label>CONNECTION STRING:</label>
+            <input type="password" id="nwc-input" placeholder="nostr+walletconnect://..." onchange="saveNWC()">
+            <div style="font-size:0.8em; opacity:0.6; margin-bottom:20px;">Paste your NWC string here to enable zaps via connection.</div>
+
             <hr style="border:0; border-top:1px dashed var(--border-color); margin:20px 0;">
             <h3>>> CONTENT FILTERS</h3>
             <div style="margin-bottom: 15px;">
@@ -400,23 +395,24 @@
             <div id="thread-replies-container">Loading replies...</div>
         </div>
         
-        <!-- 9. BOOKMARKS PANEL -->
+        <!-- 9. TRENDING PANEL (Replaces Bookmarks in UI flow) -->
+        <div id="panel-trending" class="dropdown-panel hidden">
+            <h3>>> TRENDING NOW</h3>
+            <div style="font-size:0.8em; opacity:0.7; margin-bottom:10px;">Source: trending.relays.land</div>
+            <button class="small secondary" onclick="openTrending()" style="margin-bottom:10px;">REFRESH</button>
+            <div id="trending-feed">Loading trending notes...</div>
+        </div>
+
+        <!-- 10. BOOKMARKS PANEL (Hidden, accessible via logic if needed) -->
         <div id="panel-bookmarks" class="dropdown-panel hidden">
-            <h3>>> SAVED BOOKMARKS</h3>
-            <button class="small secondary" onclick="openBookmarks()" style="margin-bottom:10px;">REFRESH LIST</button>
-            <div id="bookmarks-feed">Loading...</div>
+             <h3>>> SAVED BOOKMARKS</h3>
+             <button class="small secondary" onclick="openBookmarks()" style="margin-bottom:10px;">REFRESH LIST</button>
+             <div id="bookmarks-feed">Loading...</div>
         </div>
 
         <!-- MAIN FEED STUFF -->
         <div id="feed-container">
             <div id="new-btn" class="hidden" onclick="mergeQueue()">>> LOAD NEW SIGNALS <<</div>
-            
-            <!-- NEW TABBED FEED INTERFACE -->
-            <div class="profile-subnav" style="margin-bottom: 20px;">
-                <button id="ftab-following" class="subnav-btn" onclick="switchFeedTab('following')">NOTES</button>
-                <button id="ftab-trending" class="subnav-btn active" onclick="switchFeedTab('trending')">TRENDING</button>
-            </div>
-
             <div id="feed"></div>
         </div>
     </div>
@@ -478,32 +474,35 @@
         <span style="color:var(--border-color)">|</span>
         <div class="footer-item" onclick="openSearch()">#SEARCH</div>
         <span style="color:var(--border-color)">|</span>
-        <div class="footer-item" onclick="openBookmarks()">#BOOKMARKS</div>
+        <div class="footer-item" onclick="openTrending()">#TRENDING</div>
         <span style="color:var(--border-color)">|</span>
         <div class="footer-item" onclick="openNotifications()">#NOTIFICATIONS</div>
     </div>
 
     <script>
+        // UPDATED RELAY LIST
         const defaultRelays = [
             'wss://relay.damus.io', 
-            'wss://relay.primal.net', // Removed cache1.primal.net
+            'wss://relay.primal.net', 
             'wss://nos.lol', 
-            'wss://relay.mostr.pub', 
-            'wss://trending.relays.land'
+            'wss://relay.mostr.pub',
+            'wss://purplepag.es', // Index relay
+            'wss://trending.relays.land' // Trending source
         ];
         
         let savedRelays;
         try { savedRelays = JSON.parse(localStorage.getItem('mbit_relays')) || defaultRelays; } catch(e) { savedRelays = defaultRelays; }
+        
         let filterSettings;
         try { filterSettings = JSON.parse(localStorage.getItem('mbit_filters')) || { hideNsfw: false, blockedTags: [] }; } catch(e) { filterSettings = { hideNsfw: false, blockedTags: [] }; }
-        
-        // Load NWC String
-        let nwcString = localStorage.getItem('mbit_nwc') || null;
+
+        // NWC SETTINGS
+        let nwcString = localStorage.getItem('mbit_nwc') || "";
 
         const sockets = {};
         
         let events = [], incomingBuffer = [], pendingEvents = []; 
-        let myEvents = [], userEvents = [], searchEvents = [], notifEvents = [], threadEvents = [], bookmarkEvents = [];
+        let myEvents = [], userEvents = [], searchEvents = [], notifEvents = [], threadEvents = [], bookmarkEvents = [], trendingEvents = [];
         let isSearching = false; 
         
         let likedPosts = new Set();
@@ -523,9 +522,6 @@
         let currentUserTab = 'notes'; 
         let currentMyTab = 'notes';
         let currentNotifTab = 'all';
-        
-        // New State for Feed Tabs
-        let currentFeedTab = 'trending'; 
 
         // Init Theme
         function changeTheme(theme) {
@@ -545,21 +541,22 @@
         changeFontSize(savedFontSize);
         document.getElementById('font-size-slider').value = savedFontSize;
 
+        // Init NWC UI
+        document.getElementById('nwc-input').value = nwcString;
+
         document.getElementById('nsfw-toggle').checked = filterSettings.hideNsfw;
         renderFilterList();
-        updateNwcStatus();
 
         function goHome() {
-            ['panel-relays', 'panel-identity', 'panel-my-profile', 'panel-user-profile', 'panel-settings', 'panel-search', 'panel-notifications', 'panel-thread', 'panel-bookmarks'].forEach(p => document.getElementById(p).classList.add('hidden'));
+            ['panel-relays', 'panel-identity', 'panel-my-profile', 'panel-user-profile', 'panel-settings', 'panel-search', 'panel-notifications', 'panel-thread', 'panel-trending', 'panel-bookmarks'].forEach(p => document.getElementById(p).classList.add('hidden'));
             document.getElementById('feed-container').classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
             currentViewedProfile = null;
             currentThreadId = null;
-            renderGlobalFeed(); // Ensure correct tab is rendered
         }
 
         function togglePanel(id) {
-            ['panel-relays', 'panel-identity', 'panel-my-profile', 'panel-user-profile', 'panel-settings', 'panel-search', 'panel-notifications', 'feed-container', 'panel-thread', 'panel-bookmarks'].forEach(p => {
+            ['panel-relays', 'panel-identity', 'panel-my-profile', 'panel-user-profile', 'panel-settings', 'panel-search', 'panel-notifications', 'feed-container', 'panel-thread', 'panel-trending', 'panel-bookmarks'].forEach(p => {
                 const el = document.getElementById(p); if(el) el.classList.add('hidden');
             });
             document.getElementById(id).classList.remove('hidden');
@@ -569,7 +566,48 @@
             currentThreadId = null;
         }
 
-        /* --- FIXED THREAD LOGIC (Super Permissive) --- */
+        /* --- TRENDING LOGIC --- */
+        function openTrending() {
+            togglePanel('panel-trending');
+            document.getElementById('trending-feed').innerHTML = "Loading trending notes from relays.land...";
+            trendingEvents = [];
+            
+            // Check if we are connected to the trending relay
+            const trendingUrl = 'wss://trending.relays.land';
+            let sent = false;
+
+            if (sockets[trendingUrl] && sockets[trendingUrl].readyState === 1) {
+                // Fetch last 20 trending notes (usually kinds: 1)
+                sockets[trendingUrl].send(JSON.stringify(["REQ", "trending_sub", { kinds: [1], limit: 40 }]));
+                sent = true;
+            } else {
+                // Try to connect specifically for this
+                const ws = new WebSocket(trendingUrl);
+                sockets[trendingUrl] = ws;
+                ws.onopen = () => {
+                   ws.send(JSON.stringify(["REQ", "trending_sub", { kinds: [1], limit: 40 }]));
+                };
+                ws.onmessage = (msg) => {
+                     const data = JSON.parse(msg.data);
+                     if(data[0] === 'EVENT') handleTrendingEvent(data[2]);
+                };
+                sent = true;
+            }
+
+            if(!sent) document.getElementById('trending-feed').innerHTML = "Connection to trending relay failed.";
+        }
+
+        function handleTrendingEvent(ev) {
+            if (trendingEvents.some(e => e.id === ev.id)) return;
+            trendingEvents.push(ev);
+            // Trending sort usually implied by relay, but we ensure it
+            trendingEvents.sort((a,b) => b.created_at - a.created_at);
+            
+            document.getElementById('trending-feed').innerHTML = trendingEvents.map(generatePostHTML).join('');
+            fetchProfileIfNeeded(ev.pubkey);
+        }
+
+        /* --- THREAD LOGIC --- */
         function getImmediateParentId(ev) {
             const replyTag = ev.tags.find(t => t[0] === 'e' && t[3] === 'reply');
             if (replyTag) return replyTag[1];
@@ -583,10 +621,8 @@
         function viewThread(id) {
             currentThreadId = id;
             togglePanel('panel-thread');
-            
             document.getElementById('thread-parent-container').innerHTML = ''; 
             document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.6; padding:20px; text-align:center;">Loading conversation from relays...</div>';
-            
             threadEvents = [];
             
             Object.values(sockets).forEach(ws => {
@@ -596,11 +632,7 @@
                 }
             });
             
-            const cached = events.find(e => e.id === id) || 
-                        notifEvents.find(e => e.id === id) || 
-                        myEvents.find(e => e.id === id) || 
-                        userEvents.find(e => e.id === id) ||
-                        searchEvents.find(e => e.id === id);
+            const cached = events.find(e => e.id === id) || notifEvents.find(e => e.id === id) || myEvents.find(e => e.id === id) || userEvents.find(e => e.id === id) || searchEvents.find(e => e.id === id) || trendingEvents.find(e => e.id === id);
             
             if (cached) {
                 threadEvents.push(cached);
@@ -626,10 +658,8 @@
 
         function handleThreadEvent(ev) {
             if (threadEvents.some(e => e.id === ev.id)) return;
-            
             threadEvents.push(ev);
             fetchProfileIfNeeded(ev.pubkey);
-            
             if (ev.id !== currentThreadId) {
                 const mainNote = threadEvents.find(e => e.id === currentThreadId);
                 if (mainNote) {
@@ -640,52 +670,37 @@
                     }
                 }
             }
-            
             renderThreadView();
         }
 
         function renderThreadView() {
             const mainNote = threadEvents.find(e => e.id === currentThreadId);
-            
             let parentHtml = '';
             if (mainNote) {
                 const pid = getImmediateParentId(mainNote);
                 if (pid) {
                     const parent = threadEvents.find(e => e.id === pid);
                     if (parent) {
-                        parentHtml = `<div class="thread-ancestor">
-                            <div style="font-size:0.7em; opacity:0.7; margin-bottom:5px;">Replying to:</div>
-                            ${generatePostHTML(parent)}
-                        </div>`;
+                        parentHtml = `<div class="thread-ancestor"><div style="font-size:0.7em; opacity:0.7; margin-bottom:5px;">Replying to:</div>${generatePostHTML(parent)}</div>`;
                     } else {
-                        parentHtml = `<div class="thread-ancestor" style="opacity:0.6; text-align:center; padding:10px;">
-                            <button class="small secondary" onclick="fetchNote('${pid}')">Load Parent Note</button>
-                        </div>`;
+                        parentHtml = `<div class="thread-ancestor" style="opacity:0.6; text-align:center; padding:10px;"><button class="small secondary" onclick="fetchNote('${pid}')">Load Parent Note</button></div>`;
                     }
                 }
 
-                document.getElementById('thread-parent-container').innerHTML = 
-                    parentHtml + 
-                    `<div class="thread-parent" style="background:rgba(255,255,255,0.03); border-left:4px solid var(--text-color); padding:15px;">
-                        ${generatePostHTML(mainNote)}
-                    </div>`;
+                document.getElementById('thread-parent-container').innerHTML = parentHtml + `<div class="thread-parent" style="background:rgba(255,255,255,0.03); border-left:4px solid var(--text-color); padding:15px;">${generatePostHTML(mainNote)}</div>`;
             }
 
             const replies = threadEvents.filter(e => e.id !== currentThreadId);
             const ancestorId = mainNote ? getImmediateParentId(mainNote) : null;
             const cleanReplies = replies.filter(e => e.id !== ancestorId);
-
             cleanReplies.sort((a,b) => a.created_at - b.created_at);
             
             if (cleanReplies.length > 0) {
                 document.getElementById('thread-replies-container').innerHTML = cleanReplies.map(generatePostHTML).join('');
             } else {
-                if (mainNote) {
-                    document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.5; padding:20px; text-align:center;">No comments found yet.</div>';
-                }
+                if (mainNote) document.getElementById('thread-replies-container').innerHTML = '<div style="opacity:0.5; padding:20px; text-align:center;">No comments found yet.</div>';
             }
         }
-        /* --- END THREAD LOGIC --- */
 
         /* --- SEARCH LOGIC --- */
         function openSearch() { 
@@ -710,7 +725,6 @@
         function handleSearch() {
             const term = document.getElementById('search-input').value.trim();
             if (!term) return;
-            
             isSearching = true; 
             document.getElementById('search-status').innerText = 'SEARCH RESULTS:';
             document.getElementById('search-results').innerHTML = '<div style="padding:10px;text-align:center;opacity:0.6;">Searching decentralized network...</div>';
@@ -752,18 +766,15 @@
         function handleSearchEvent(ev) {
             if (searchEvents.some(e => e.id === ev.id)) return;
             searchEvents.push(ev);
-            
             searchEvents.sort((a,b) => {
                 if(a.kind === 0 && b.kind !== 0) return -1;
                 if(b.kind === 0 && a.kind !== 0) return 1;
                 return b.created_at - a.created_at;
             });
-            
             document.getElementById('search-results').innerHTML = searchEvents.map(ev => {
                 if(ev.kind === 0) return generateProfileCardHTML(ev);
                 return generatePostHTML(ev);
             }).join('');
-            
             if(ev.kind !== 0) fetchProfileIfNeeded(ev.pubkey);
         }
 
@@ -772,7 +783,6 @@
             try { meta = JSON.parse(ev.content); } catch(e) {}
             if(!profiles[ev.pubkey]) initProfileData(ev.pubkey);
             profiles[ev.pubkey].meta = meta;
-
             return `
             <div class="profile-card" onclick="viewProfile('${ev.pubkey}')">
                 ${meta.picture ? `<img src="${meta.picture}">` : '<div style="width:50px;height:50px;background:#222;border-radius:50%;display:flex;align-items:center;justify-content:center;">?</div>'}
@@ -800,22 +810,6 @@
             });
         }
 
-        // Helper to extract sats from Zap Receipt
-        function parseZapAmount(ev) {
-            try {
-                // NIP-57: Description tag contains the JSON of the zap request
-                const descTag = ev.tags.find(t => t[0] === 'description');
-                if (descTag) {
-                    const request = JSON.parse(descTag[1]);
-                    const amountTag = request.tags.find(t => t[0] === 'amount');
-                    if (amountTag) {
-                        return Math.floor(parseInt(amountTag[1]) / 1000); // millisats to sats
-                    }
-                }
-            } catch(e) { }
-            return 0;
-        }
-
         function handleNotifEvent(ev) {
             if (notifEvents.some(e => e.id === ev.id)) return;
             if (ev.kind === 9735) {
@@ -834,11 +828,7 @@
         }
 
         function findTargetContent(id) {
-            const note = events.find(e => e.id === id) || 
-                         myEvents.find(e => e.id === id) || 
-                         userEvents.find(e => e.id === id) ||
-                         threadEvents.find(e => e.id === id);
-            
+            const note = events.find(e => e.id === id) || myEvents.find(e => e.id === id) || userEvents.find(e => e.id === id) || threadEvents.find(e => e.id === id);
             if (!note) return null;
             let text = note.content;
             if (text.length > 80) text = text.substring(0, 80) + '...';
@@ -854,42 +844,68 @@
             
             document.getElementById('notifications-feed').innerHTML = list.map(ev => {
                 if (ev.kind === 9735) {
-                     let senderPubkey = ev.pubkey; // default to relayer
-                     
-                     // Get amount
-                     let amountSats = parseZapAmount(ev);
-
+                     let senderPubkey = ev.pubkey;
+                     let amountSats = 0;
                      let targetId = null;
                      const eTag = ev.tags.find(t => t[0] === 'e');
                      if (eTag) targetId = eTag[1];
-                     
-                     // Get sender from Zap Request
                      const descTag = ev.tags.find(t => t[0] === 'description');
-                     if (descTag) { 
-                        try { 
-                            const request = JSON.parse(descTag[1]); 
-                            senderPubkey = request.pubkey; 
-                        } catch(e) {} 
+                     if (descTag) {
+                        try {
+                            const request = JSON.parse(descTag[1]);
+                            senderPubkey = request.pubkey;
+                            const amountTag = request.tags.find(t => t[0] === 'amount');
+                            if(amountTag) amountSats = Math.floor(parseInt(amountTag[1]) / 1000);
+                        } catch(e) {}
                      }
-                     
                      const p = (profiles[senderPubkey] && profiles[senderPubkey].meta) ? profiles[senderPubkey].meta : {name: senderPubkey.substring(0,6)};
                      const snippet = targetId ? findTargetContent(targetId) : null;
-                     
-                     return `<div class="notif-item" onclick="${targetId ? `viewThread('${targetId}')` : ''}" style="cursor:pointer;">${p.picture ? `<img src="${p.picture}" class="avatar" style="margin-right:15px;">` : '<span class="notif-icon" style="color:#F7931A;">⚡</span>'}<div style="flex-grow:1;"><div style="font-weight:bold; color:#F7931A; font-size:1.1em;">+${formatSats(amountSats)}</div><div style="font-size:0.9em;">from <span style="font-weight:bold; color:var(--text-color);">${p.name || senderPubkey.substring(0,6)}</span></div>${snippet ? `<div style="margin-top:5px; padding-left:10px; border-left:3px solid #333; font-style:italic; opacity:0.8; font-size:0.8em;">"${snippet}"</div>` : ''}</div></div>`;
+                     return `
+                     <div class="notif-item" onclick="${targetId ? `viewThread('${targetId}')` : ''}" style="cursor:pointer;">
+                        ${p.picture ? `<img src="${p.picture}" class="avatar" style="margin-right:15px;">` : '<span class="notif-icon" style="color:#F7931A;">⚡</span>'}
+                        <div style="flex-grow:1;">
+                            <div style="font-weight:bold; color:#F7931A; font-size:1.1em;">+${amountSats} sats</div>
+                            <div style="font-size:0.9em;">
+                                from <span style="font-weight:bold; color:var(--text-color);">${p.name || senderPubkey.substring(0,6)}</span>
+                            </div>
+                            ${snippet ? `<div style="margin-top:5px; padding-left:10px; border-left:3px solid #333; font-style:italic; opacity:0.8; font-size:0.8em;">"${snippet}"</div>` : ''}
+                        </div>
+                     </div>`;
                 }
                 if (ev.kind === 7) {
                     const p = (profiles[ev.pubkey] && profiles[ev.pubkey].meta) ? profiles[ev.pubkey].meta : {name: ev.pubkey.substring(0,6)};
                     const targetId = ev.tags.find(t => t[0] === 'e')?.[1];
                     const snippet = targetId ? findTargetContent(targetId) : null;
-                    return `<div class="notif-item" onclick="${targetId ? `viewThread('${targetId}')` : ''}" style="cursor:pointer;"><div style="font-size:1.5em; margin-right:15px; color:#e0245e;">❤</div><div style="flex-grow:1;"><div style="font-size:0.9em;"><span style="font-weight:bold;">${p.name || ev.pubkey.substring(0,6)}</span> liked your note.</div>${snippet ? `<div style="margin-top:5px; padding-left:10px; border-left:3px solid #333; font-style:italic; opacity:0.8; font-size:0.8em;">"${snippet}"</div>` : ''}</div></div>`;
+                    return `
+                    <div class="notif-item" onclick="${targetId ? `viewThread('${targetId}')` : ''}" style="cursor:pointer;">
+                        <div style="font-size:1.5em; margin-right:15px; color:#e0245e;">❤</div>
+                        <div style="flex-grow:1;">
+                            <div style="font-size:0.9em;">
+                                <span style="font-weight:bold;">${p.name || ev.pubkey.substring(0,6)}</span> liked your note.
+                            </div>
+                            ${snippet ? `<div style="margin-top:5px; padding-left:10px; border-left:3px solid #333; font-style:italic; opacity:0.8; font-size:0.8em;">"${snippet}"</div>` : ''}
+                        </div>
+                    </div>`;
                 }
                 if (ev.kind === 6) {
                     const p = (profiles[ev.pubkey] && profiles[ev.pubkey].meta) ? profiles[ev.pubkey].meta : {name: ev.pubkey.substring(0,6)};
                     const targetId = ev.tags.find(t => t[0] === 'e')?.[1];
                     const snippet = targetId ? findTargetContent(targetId) : null;
-                    return `<div class="notif-item" onclick="${targetId ? `viewThread('${targetId}')` : ''}" style="cursor:pointer;"><div style="font-size:1.5em; margin-right:15px; color:#17bf63;">↻</div><div style="flex-grow:1;"><div style="font-size:0.9em;"><span style="font-weight:bold;">${p.name || ev.pubkey.substring(0,6)}</span> reposted your note.</div>${snippet ? `<div style="margin-top:5px; padding-left:10px; border-left:3px solid #333; font-style:italic; opacity:0.8; font-size:0.8em;">"${snippet}"</div>` : ''}</div></div>`;
+                    return `
+                    <div class="notif-item" onclick="${targetId ? `viewThread('${targetId}')` : ''}" style="cursor:pointer;">
+                        <div style="font-size:1.5em; margin-right:15px; color:#17bf63;">↻</div>
+                        <div style="flex-grow:1;">
+                            <div style="font-size:0.9em;">
+                                <span style="font-weight:bold;">${p.name || ev.pubkey.substring(0,6)}</span> reposted your note.
+                            </div>
+                            ${snippet ? `<div style="margin-top:5px; padding-left:10px; border-left:3px solid #333; font-style:italic; opacity:0.8; font-size:0.8em;">"${snippet}"</div>` : ''}
+                        </div>
+                    </div>`;
                 }
-                return `<div style="border-bottom: 1px solid var(--post-border); padding-bottom: 15px; margin-bottom: 15px;"><div style="font-size: 0.75em; opacity: 0.7; margin-bottom: 8px;">💬 Reply to your note:</div>${generatePostHTML(ev)}</div>`;
+                return `<div style="border-bottom: 1px solid var(--post-border); padding-bottom: 15px; margin-bottom: 15px;">
+                    <div style="font-size: 0.75em; opacity: 0.7; margin-bottom: 8px;">💬 Reply to your note:</div>
+                    ${generatePostHTML(ev)}
+                </div>`;
             }).join('');
         }
 
@@ -996,7 +1012,7 @@
         }
 
         function viewProfile(pubkey) {
-            ['panel-search', 'panel-notifications', 'panel-thread', 'panel-bookmarks'].forEach(p => document.getElementById(p).classList.add('hidden'));
+            ['panel-search', 'panel-notifications', 'panel-thread', 'panel-bookmarks', 'panel-trending'].forEach(p => document.getElementById(p).classList.add('hidden'));
             togglePanel('panel-user-profile');
             currentViewedProfile = pubkey;
             initProfileData(pubkey);
@@ -1138,20 +1154,16 @@
 
         function connectToRelay(url) {
             try {
+                if(sockets[url] && sockets[url].readyState <= 1) return;
                 const ws = new WebSocket(url); sockets[url] = ws;
                 ws.onopen = () => { 
-                    // SPECIAL HANDLING: If this is the directory relay (purplepag.es),
-                    // DO NOT subscribe to the global feed (Kind 1) to save bandwidth and avoid errors.
-                    // It will remain open for fetchProfile/search queries (Kind 0).
-                    if (url !== 'wss://purplepag.es') {
-                        ws.send(JSON.stringify(["REQ", "g", { kinds:[1,6], limit:40 }])); 
-                        if(myPubKey) {
-                            fetchProfile(myPubKey);
-                            ws.send(JSON.stringify(["REQ", "my_contacts", { kinds:[3], authors:[myPubKey], limit:1 }]));
-                        }
-                    } else {
-                        // For directory relay, we might still want to fetch our own profile if we just connected
-                        if(myPubKey) fetchProfile(myPubKey); 
+                    // Only request global feed from standard relays (avoid spamming index/trending relays)
+                    if (!url.includes('purplepag.es') && !url.includes('trending.relays.land')) {
+                         ws.send(JSON.stringify(["REQ", "g", { kinds:[1,6], limit:40 }])); 
+                    }
+                    if(myPubKey) {
+                        fetchProfile(myPubKey);
+                        ws.send(JSON.stringify(["REQ", "my_contacts", { kinds:[3], authors:[myPubKey], limit:1 }]));
                     }
                     renderRelays(); 
                 };
@@ -1164,17 +1176,13 @@
                         processEventStats(ev); 
                         if (subId === 'my_meta' || subId === 'user_meta') processProfileEvent(ev, subId === 'my_meta');
                         if (subId === 'my_followers' || subId === 'user_followers') processProfileEvent(ev, subId === 'my_followers'); 
-                        if (subId === 'g') handleGlobalEvent(ev, url); // Changed signature
+                        if (subId === 'g') handleGlobalEvent(ev);
                         if (subId === 'sub_me') handleMyEvent(ev);
                         if (subId === 'sub_user') handleUserEvent(ev);
                         if (subId === 'search_sub') handleSearchEvent(ev);
                         if (subId === 'notif_sub') handleNotifEvent(ev);
-                        
-                        // Handle Thread Events
-                        if (subId === 'thread_main' || subId === 'thread_children' || subId.startsWith('thread_ancestor')) {
-                            handleThreadEvent(ev);
-                        }
-
+                        if (subId === 'trending_sub') handleTrendingEvent(ev);
+                        if (subId === 'thread_main' || subId === 'thread_children' || subId.startsWith('thread_ancestor')) handleThreadEvent(ev);
                         if (subId === 'bookmarks_sub') handleBookmarkEvent(ev);
                         if (subId.startsWith('m_')) { try { profiles[ev.pubkey].meta = JSON.parse(ev.content); } catch(e) { initProfileData(ev.pubkey); profiles[ev.pubkey].meta = JSON.parse(ev.content); } renderNotifications(); }
                     }
@@ -1183,38 +1191,7 @@
         }
         
         function handleContacts(ev) { if(ev.kind===3) { const pTags = ev.tags.filter(t=>t[0]==='p').map(t=>t[1]); myContacts = new Set(pTags); if(currentViewedProfile) renderUserProfileHeader(currentViewedProfile); } }
-        
-        function handleGlobalEvent(ev, sourceRelay) {
-            // Mark relay source for filtering
-            ev._relay = sourceRelay;
-            // UPDATE: Include Primal Cache as a Trending Source (removed, but keeping logic just in case user adds it manually)
-            const isTrendingSource = sourceRelay === 'wss://trending.relays.land' || sourceRelay === 'wss://cache1.primal.net';
-
-            if (processedIds.has(ev.id)) {
-                if (isTrendingSource) {
-                    // Event is a duplicate, but if it's from the trending relay, we need
-                    // to find the original event in any of our buffers and mark it as trending.
-                    const existingEvent = events.find(e => e.id === ev.id) ||
-                                      incomingBuffer.find(e => e.id === ev.id) ||
-                                      pendingEvents.find(e => e.id === ev.id);
-                    
-                    if (existingEvent) {
-                        existingEvent._isTrending = true;
-                    }
-                }
-                return; // Don't process duplicate further
-            }
-
-            // This is a new event
-            processedIds.add(ev.id);
-            
-            if (isTrendingSource) {
-                ev._isTrending = true;
-            }
-
-            fetchProfileIfNeeded(ev.pubkey);
-            incomingBuffer.push(ev);
-        }
+        function handleGlobalEvent(ev) { if(processedIds.has(ev.id)) return; processedIds.add(ev.id); fetchProfileIfNeeded(ev.pubkey); incomingBuffer.push(ev); }
         
         setInterval(() => { 
             if(incomingBuffer.length===0) return; 
@@ -1247,37 +1224,7 @@
             window.scrollTo(0,0); 
         }
 
-        // NEW FEED RENDER LOGIC
-        function switchFeedTab(tab) {
-            currentFeedTab = tab;
-            ['ftab-following', 'ftab-trending'].forEach(id => document.getElementById(id).classList.remove('active'));
-            document.getElementById('ftab-'+tab).classList.add('active');
-            renderGlobalFeed();
-        }
-
-        function renderGlobalFeed() { 
-            let list = events;
-            
-            if (currentFeedTab === 'following') {
-                // Filter: Must be in my contact list
-                if (myContacts.size > 0) {
-                    list = events.filter(ev => myContacts.has(ev.pubkey));
-                } else {
-                    // If no contacts or not logged in, show helpful message
-                    document.getElementById('feed').innerHTML = '<div style="padding:20px; text-align:center; opacity:0.6;">Login and follow people to see notes here.<br>Switch to TRENDING to see content now.</div>';
-                    return;
-                }
-            } else {
-                // TRENDING: Show events marked as trending
-                list = events.filter(ev => ev._isTrending === true);
-            }
-
-            if (list.length === 0) {
-                document.getElementById('feed').innerHTML = '<div style="padding:20px; text-align:center; opacity:0.6;">Waiting for signals...</div>';
-            } else {
-                document.getElementById('feed').innerHTML = list.map(generatePostHTML).join('');
-            }
-        }
+        function renderGlobalFeed() { document.getElementById('feed').innerHTML = events.map(generatePostHTML).join(''); }
         
         async function toggleFollow(pubkey) { if(!myPubKey) return alert("Login required"); if(myContacts.has(pubkey)) myContacts.delete(pubkey); else myContacts.add(pubkey); renderUserProfileHeader(pubkey); const tags = Array.from(myContacts).map(p => ['p', p]); const event = { kind: 3, created_at: Math.floor(Date.now()/1000), tags: tags, content: "", pubkey: myPubKey }; await signAndBroadcast(event); }
         async function signAndBroadcast(event) { if (authMode === 'extension') event = await window.nostr.signEvent(event); else { event.id = window.NostrTools.getEventHash(event); event.sig = window.NostrTools.signEvent(event, myPrivKey); } Object.values(sockets).forEach(ws => { if(ws.readyState === 1) ws.send(JSON.stringify(["EVENT", event])); }); return event; }
@@ -1305,22 +1252,13 @@
         function renderRelays() { document.getElementById('relay-list').innerHTML = savedRelays.map(url => { const isOpen = sockets[url] && sockets[url].readyState === 1; return `<div class="relay-item"><div class="relay-content"><span style="color:${isOpen?'#00FF41':'red'}; font-weight:bold; margin-right:5px;">${isOpen?'#ON':'#OFF'}</span><span class="relay-url" title="${url}">${url}</span></div><button class="small danger" style="width: 30px; flex-shrink: 0;" onclick="removeRelay('${url}')">X</button></div>`; }).join(''); }
         function addRelay() { let url = document.getElementById('new-relay').value.trim(); if(url){ if(!url.startsWith('wss://')) url = 'wss://' + url; savedRelays.push(url); localStorage.setItem('mbit_relays', JSON.stringify(savedRelays)); connectToRelay(url); document.getElementById('new-relay').value = ''; } }
         function removeRelay(url) { savedRelays = savedRelays.filter(r => r !== url); localStorage.setItem('mbit_relays', JSON.stringify(savedRelays)); if(sockets[url]) sockets[url].close(); renderRelays(); }
+        function reconnectRelays() { Object.values(sockets).forEach(s => s.close()); savedRelays.forEach(connectToRelay); renderRelays(); alert("Reconnecting..."); }
+
         function logout() { localStorage.clear(); location.reload(); }
         function copyKey(id) { const el = document.getElementById(id); el.select(); navigator.clipboard.writeText(el.value); alert("COPIED"); }
         function copyToClipboard(text) { navigator.clipboard.writeText(text); alert("COPIED"); }
         function toggleSecret() { const el = document.getElementById('display-nsec'); el.type = el.type === "password" ? "text" : "password"; }
         function fetchProfile(pubkey) { Object.values(sockets).forEach(ws => ws.send(JSON.stringify(["REQ", "m_"+pubkey.substring(0,8), { kinds: [0], authors: [pubkey], limit: 1 }]))); }
-
-        function reconnectRelays() {
-            Object.values(sockets).forEach(ws => {
-                if(ws) ws.close();
-            });
-            renderRelays(); // Update UI to show off temporarily
-            setTimeout(() => {
-                savedRelays.forEach(connectToRelay);
-                connectToRelay('wss://purplepag.es'); // Ensure directory relay is reconnected
-            }, 500);
-        }
 
         async function loginExtension() {
             if (typeof window.nostr === 'undefined') { await new Promise(r => setTimeout(r, 500)); if (typeof window.nostr === 'undefined') return alert("No Nostr extension found (Alby, nos2x, etc)."); }
@@ -1336,52 +1274,17 @@
         function renderFilterList() { document.getElementById('filter-list').innerHTML = filterSettings.blockedTags.map(tag => `<span class="filter-tag">#${tag} <span class="remove-tag" onclick="removeFilterTag('${tag}')">x</span></span>`).join(''); }
         function isBlocked(ev) { if (!ev.tags) return false; const evTags = ev.tags.filter(t => t[0] === 't').map(t => t[1].toLowerCase()); if (filterSettings.hideNsfw && evTags.includes('nsfw')) return true; for (let blocked of filterSettings.blockedTags) { if (evTags.includes(blocked)) return true; } return false; }
         
-        function doBookmark(id) { if(bookmarks.has(id)) { bookmarks.delete(id); alert("Bookmark Removed"); } else { bookmarks.add(id); alert("Saved to Bookmarks"); } localStorage.setItem('mbit_bookmarks', JSON.stringify([...bookmarks])); if(!document.getElementById('panel-bookmarks').classList.contains('hidden')) openBookmarks(); if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); }
+        function doBookmark(id) { if(bookmarks.has(id)) { bookmarks.delete(id); alert("Bookmark Removed"); } else { bookmarks.add(id); alert("Saved to Bookmarks"); } localStorage.setItem('mbit_bookmarks', JSON.stringify([...bookmarks])); }
         function openBookmarks() { togglePanel('panel-bookmarks'); const ids = [...bookmarks]; if(ids.length === 0) { document.getElementById('bookmarks-feed').innerHTML = "No bookmarks yet."; return; } document.getElementById('bookmarks-feed').innerHTML = "Loading saved posts..."; bookmarkEvents = []; Object.values(sockets).forEach(ws => { if(ws.readyState === 1) ws.send(JSON.stringify(["REQ", "bookmarks_sub", { kinds: [1], ids: ids }])); }); }
         function handleBookmarkEvent(ev) { if(bookmarkEvents.some(e => e.id === ev.id)) return; bookmarkEvents.push(ev); bookmarkEvents.sort((a,b) => b.created_at - a.created_at); document.getElementById('bookmarks-feed').innerHTML = bookmarkEvents.map(generatePostHTML).join(''); fetchProfileIfNeeded(ev.pubkey); }
         
-        /* --- NWC (WALLET CONNECT) LOGIC --- */
+        /* --- NWC & ZAP LOGIC --- */
         function saveNWC() {
-            const uri = document.getElementById('nwc-input').value.trim();
-            if(!uri.startsWith('nostr+walletconnect://')) return alert("Invalid NWC URI");
-            localStorage.setItem('mbit_nwc', uri);
-            nwcString = uri;
-            updateNwcStatus();
-            alert("Wallet Connected!");
+            nwcString = document.getElementById('nwc-input').value.trim();
+            localStorage.setItem('mbit_nwc', nwcString);
+            alert("Connection string saved.");
         }
 
-        function disconnectNWC() {
-            localStorage.removeItem('mbit_nwc');
-            nwcString = null;
-            document.getElementById('nwc-input').value = '';
-            updateNwcStatus();
-            alert("Wallet Disconnected");
-        }
-
-        function updateNwcStatus() {
-            const el = document.getElementById('nwc-status');
-            if(nwcString) {
-                el.innerText = "Status: CONNECTED via NWC";
-                el.style.color = "#00FF41";
-            } else {
-                el.innerText = "Status: Not Connected";
-                el.style.color = "#F7931A";
-            }
-        }
-
-        // Helper to parse NWC URI
-        function parseNwcUri(uri) {
-            try {
-                const url = new URL(uri.replace('nostr+walletconnect:', 'https:'));
-                return {
-                    pubkey: url.host,
-                    relay: url.searchParams.get('relay'),
-                    secret: url.searchParams.get('secret')
-                };
-            } catch(e) { return null; }
-        }
-
-        /* --- ZAP LOGIC (Snort Style) --- */
         let zapContext = null;
 
         function handleZap(lud16, pubkey, eventId = null) {
@@ -1390,7 +1293,6 @@
             
             zapContext = { lud16, pubkey, eventId };
             
-            // Reset UI
             document.getElementById('zap-amt-val').innerText = "21";
             document.getElementById('custom-zap-input').value = "";
             document.getElementById('zap-comment').value = "";
@@ -1420,17 +1322,21 @@
             if (!amount || amount <= 0) return alert("Invalid amount");
             if (!zapContext) return;
 
+            // NWC placeholder check
+            if (nwcString.startsWith("nostr+walletconnect")) {
+                alert("NWC string found! In a full implementation, this would trigger a background payment using your NWC secret. For this template, we will fall back to Invoice method.");
+            }
+
             const { lud16, pubkey, eventId } = zapContext;
             const parts = lud16.split('@');
             if (parts.length !== 2) return alert("Invalid LUD16");
 
             const btn = document.querySelector('#zap-modal .zap-active');
             const oldText = btn.innerText;
-            btn.innerText = "Processing...";
+            btn.innerText = "fetching invoice...";
             btn.disabled = true;
 
             try {
-                // A. Get LNURL Data
                 const url = `https://${parts[1]}/.well-known/lnurlp/${parts[0]}`;
                 const res = await fetch(url);
                 const data = await res.json();
@@ -1438,11 +1344,10 @@
                 if (data.callback) {
                     const millisats = amount * 1000;
                     if (millisats < data.minSendable || millisats > data.maxSendable) {
-                        alert(`Amount out of range.`);
+                        alert(`Amount out of range (Min: ${data.minSendable/1000}, Max: ${data.maxSendable/1000})`);
                         throw new Error("Range error");
                     }
 
-                    // B. Create Zap Request Event
                     let zapTags = [
                         ['p', pubkey],
                         ['relays', ...savedRelays],
@@ -1459,7 +1364,6 @@
                         pubkey: myPubKey
                     };
 
-                    // C. Sign Request
                     let signedEvent;
                     if (authMode === 'extension') {
                         signedEvent = await window.nostr.signEvent(zapEvent);
@@ -1469,66 +1373,22 @@
                         signedEvent = zapEvent;
                     }
 
-                    // D. Get Invoice
                     const encodedEvent = encodeURI(JSON.stringify(signedEvent));
                     const cbUrl = `${data.callback}?amount=${millisats}&nostr=${encodedEvent}`;
+                    
                     const cbRes = await fetch(cbUrl);
                     const cbData = await cbRes.json();
 
                     if (cbData.pr) {
                         closeZapModal();
-                        
-                        // ** NWC CHECK **
-                        if (nwcString) {
-                            // Pay via NWC
-                            const nwc = parseNwcUri(nwcString);
-                            if(nwc) {
-                                btn.innerText = "Paying via NWC...";
-                                try {
-                                    const payload = {
-                                        method: "pay_invoice",
-                                        params: { invoice: cbData.pr }
-                                    };
-                                    
-                                    // Encrypt payload
-                                    const ciphertext = await window.NostrTools.nip04.encrypt(nwc.secret, nwc.pubkey, JSON.stringify(payload));
-                                    
-                                    // Create NWC Request Event (Kind 23194)
-                                    const nwcEvent = {
-                                        kind: 23194,
-                                        content: ciphertext,
-                                        tags: [['p', nwc.pubkey]],
-                                        created_at: Math.floor(Date.now() / 1000),
-                                        pubkey: window.NostrTools.getPublicKey(nwc.secret)
-                                    };
-                                    
-                                    nwcEvent.id = window.NostrTools.getEventHash(nwcEvent);
-                                    nwcEvent.sig = window.NostrTools.signEvent(nwcEvent, nwc.secret);
-                                    
-                                    // Publish to NWC Relay
-                                    const relay = new WebSocket(nwc.relay);
-                                    relay.onopen = () => {
-                                        relay.send(JSON.stringify(["EVENT", nwcEvent]));
-                                        alert("Zap sent via NWC! ⚡");
-                                        relay.close();
-                                    };
-                                    return; // Stop here, payment handled
-                                } catch(e) {
-                                    console.error(e);
-                                    alert("NWC Error. Opening wallet instead.");
-                                }
-                            }
-                        }
-
-                        // Fallback to manual wallet
                         window.location.href = `lightning:${cbData.pr}`;
                     } else {
-                        alert("Invoice generation failed: " + (cbData.reason || "Unknown"));
+                        alert("Lightning Node refused to generate invoice: " + (cbData.reason || "Unknown error"));
                     }
                 }
             } catch (e) {
                 console.error(e);
-                alert("Zap failed.");
+                alert("Zap failed. See console.");
             } finally {
                 btn.innerText = oldText;
                 btn.disabled = false;
@@ -1536,53 +1396,9 @@
         }
         /* --- END ZAP LOGIC --- */
 
-        function processEventStats(ev) { 
-            if (!ev || !ev.tags) return; 
-            const eTags = ev.tags.filter(t => t[0] === 'e'); 
-            
-            // Extract Zap Amount if it's a zap
-            let zapSats = 0;
-            if(ev.kind === 9735) zapSats = parseZapAmount(ev);
-
-            eTags.forEach(t => { 
-                const targetId = t[1]; 
-                if (!eventStats[targetId]) eventStats[targetId] = { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; 
-                
-                if (ev.kind === 1) eventStats[targetId].reply++; 
-                if (ev.kind === 6) eventStats[targetId].repost++; 
-                if (ev.kind === 7) eventStats[targetId].like++; 
-                if (ev.kind === 9735) {
-                    eventStats[targetId].zap++; 
-                    eventStats[targetId].zapAmount += zapSats;
-                }
-
-                updateCountDOM(targetId, 'reply'); 
-                updateCountDOM(targetId, 'repost'); 
-                updateCountDOM(targetId, 'like'); 
-                updateCountDOM(targetId, 'zap'); 
-            }); 
-        }
-
-        function formatSats(sats) {
-            if (sats >= 1000000) return (sats / 1000000).toFixed(1) + 'M';
-            if (sats >= 1000) return (sats / 1000).toFixed(1) + 'k';
-            return sats;
-        }
-
-        function updateCountDOM(id, type) { 
-            const el = document.getElementById(`s-${type}-${id}`); 
-            if (el && eventStats[id]) { 
-                if (type === 'zap') {
-                    // Show amount if > 0, else count, else 0
-                    const amt = eventStats[id].zapAmount;
-                    el.innerText = amt > 0 ? formatSats(amt) : eventStats[id].zap;
-                } else {
-                    el.innerText = eventStats[id][type]; 
-                }
-            } 
-        }
-
-        async function doLike(id, pubkey) { if(!myPubKey) return alert("Login first"); likedPosts.add(id); localStorage.setItem('mbit_likes', JSON.stringify([...likedPosts])); if(!eventStats[id]) eventStats[id] = { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; eventStats[id].like++; updateCountDOM(id, 'like'); if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); if(!document.getElementById('panel-thread').classList.contains('hidden')) viewThread(currentThreadId); const event = { kind: 7, created_at: Math.floor(Date.now()/1000), tags: [['e', id], ['p', pubkey]], content: "+", pubkey: myPubKey }; await signAndBroadcast(event); }
+        function processEventStats(ev) { if (!ev || !ev.tags) return; const eTags = ev.tags.filter(t => t[0] === 'e'); eTags.forEach(t => { const targetId = t[1]; if (!eventStats[targetId]) eventStats[targetId] = { reply:0, repost:0, like:0, zap:0 }; if (ev.kind === 1) eventStats[targetId].reply++; if (ev.kind === 6) eventStats[targetId].repost++; if (ev.kind === 7) eventStats[targetId].like++; if (ev.kind === 9735) eventStats[targetId].zap++; updateCountDOM(targetId, 'reply'); updateCountDOM(targetId, 'repost'); updateCountDOM(targetId, 'like'); updateCountDOM(targetId, 'zap'); }); }
+        function updateCountDOM(id, type) { const el = document.getElementById(`s-${type}-${id}`); if (el && eventStats[id]) { el.innerText = eventStats[id][type]; } }
+        async function doLike(id, pubkey) { if(!myPubKey) return alert("Login first"); likedPosts.add(id); localStorage.setItem('mbit_likes', JSON.stringify([...likedPosts])); if(!eventStats[id]) eventStats[id] = { reply:0, repost:0, like:0, zap:0 }; eventStats[id].like++; updateCountDOM(id, 'like'); if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); if(!document.getElementById('panel-thread').classList.contains('hidden')) viewThread(currentThreadId); const event = { kind: 7, created_at: Math.floor(Date.now()/1000), tags: [['e', id], ['p', pubkey]], content: "+", pubkey: myPubKey }; await signAndBroadcast(event); }
 
         function generatePostHTML(ev) { 
             if (isBlocked(ev)) return ''; 
@@ -1590,12 +1406,8 @@
             let content = ev.content; if (ev.kind === 6) try { content = JSON.parse(ev.content).content || "[Repost]"; } catch(e) { content = "[Repost]"; } 
             const likeClass = likedPosts.has(ev.id) ? 'act-btn active' : 'act-btn'; 
             const bookmarkClass = bookmarks.has(ev.id) ? 'act-btn bookmark-btn active' : 'act-btn bookmark-btn'; 
-            const s = eventStats[ev.id] || { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; 
-            
-            // Format Zap Label (Amount if available, else count)
-            const zapLabel = s.zapAmount > 0 ? formatSats(s.zapAmount) : s.zap;
-
-            return `<div class="post"> <div class="meta" onclick="viewProfile('${ev.pubkey}')"> ${p.picture?`<img src="${p.picture}" class="avatar">`:''} <span class="username-link">${p.display_name || p.name || ev.pubkey.substring(0,6)}</span> <span style="margin-left:5px; opacity:0.5;">• ${new Date(ev.created_at*1000).toLocaleTimeString()}</span> </div> <div class="content" onclick="viewThread('${ev.id}')">${parseContent(content)}</div> <div class="actions"> <button class="act-btn" onclick="initReply('${ev.id}', '${ev.pubkey}')">#REPLY <span id="s-reply-${ev.id}">${s.reply}</span></button> <button class="act-btn" onclick="initQuote('${ev.id}')">#SHARE <span id="s-repost-${ev.id}">${s.repost}</span></button> <button class="${likeClass} act-btn" onclick="doLike('${ev.id}', '${ev.pubkey}')">#LIKE <span id="s-like-${ev.id}">${s.like}</span></button> <button class="act-btn zap-btn" onclick="handleZap('${p.lud16}', '${ev.pubkey}', '${ev.id}')">#ZAP ⚡ <span id="s-zap-${ev.id}">${zapLabel}</span></button> <button class="${bookmarkClass}" onclick="doBookmark('${ev.id}')">#MARK</button> </div> </div>`; 
+            const s = eventStats[ev.id] || { reply:0, repost:0, like:0, zap:0 }; 
+            return `<div class="post"> <div class="meta" onclick="viewProfile('${ev.pubkey}')"> ${p.picture?`<img src="${p.picture}" class="avatar">`:''} <span class="username-link">${p.display_name || p.name || ev.pubkey.substring(0,6)}</span> <span style="margin-left:5px; opacity:0.5;">• ${new Date(ev.created_at*1000).toLocaleTimeString()}</span> </div> <div class="content" onclick="viewThread('${ev.id}')">${parseContent(content)}</div> <div class="actions"> <button class="act-btn" onclick="initReply('${ev.id}', '${ev.pubkey}')">#REPLY <span id="s-reply-${ev.id}">${s.reply}</span></button> <button class="act-btn" onclick="initQuote('${ev.id}')">#SHARE <span id="s-repost-${ev.id}">${s.repost}</span></button> <button class="${likeClass} act-btn" onclick="doLike('${ev.id}', '${ev.pubkey}')">#LIKE <span id="s-like-${ev.id}">${s.like}</span></button> <button class="act-btn zap-btn" onclick="handleZap('${p.lud16}', '${ev.pubkey}', '${ev.id}')">#ZAP ⚡ <span id="s-zap-${ev.id}">${s.zap}</span></button> <button class="${bookmarkClass}" onclick="doBookmark('${ev.id}')">#MARK</button> </div> </div>`; 
         }
         function parseContent(text) { 
             if(!text) return ""; let content = text.replace(/</g, "&lt;").replace(/>/g, "&gt;"); 
@@ -1607,12 +1419,7 @@
         }
 
         if (myPubKey) { document.getElementById('login-form').classList.add('hidden'); document.getElementById('user-info').classList.remove('hidden'); document.getElementById('display-npub').value = window.NostrTools.nip19.npubEncode(myPubKey); if (myPrivKey) document.getElementById('display-nsec').value = window.NostrTools.nip19.nsecEncode(myPrivKey); else document.getElementById('nsec-display-container').classList.add('hidden'); }
-        
-        // Init connections
         savedRelays.forEach(connectToRelay);
-        // Connect to directory relay in background
-        connectToRelay('wss://purplepag.es');
-        
         goHome();
     </script>
 </body>
