@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>mBIT</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://unpkg.com/nostr-tools@1.17.0/lib/nostr.bundle.js"></script>
@@ -70,7 +70,7 @@
             font-family: "Courier New", Courier, monospace;
             font-size: var(--base-font-size);
             padding: 20px; 
-            padding-bottom: 80px;
+            padding-bottom: 90px; /* Extra padding for sticky footer */
             margin: 0; 
             min-height: 100vh;
             transition: font-size 0.2s ease;
@@ -174,14 +174,31 @@
         .notif-item:hover { background: rgba(255,255,255,0.05); }
         .notif-icon { margin-right: 15px; font-size: 1.5em; width: 25px; text-align: center; }
 
-        .sticky-footer { position: fixed; bottom: 0; left: 0; width: 100%; background-color: var(--footer-bg); border-top: 1px solid var(--border-color); display: flex; justify-content: center; gap: 6px; padding: 15px 0; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.5); font-family: inherit; }
+        /* FOOTER DISPLAY ALL TIME */
+        .sticky-footer { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 60px;
+            background-color: var(--footer-bg); 
+            border-top: 1px solid var(--border-color); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            gap: 6px; 
+            z-index: 1200; /* Higher than content, lower than FAB/Modal */
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.5); 
+            font-family: inherit; 
+            transform: translateZ(0); /* Hardware acceleration */
+        }
         .footer-item { font-size: 0.85em; cursor: pointer; text-align: center; transition: 0.3s; color: var(--text-color); text-decoration: none; opacity: 0.7; }
         .footer-item:hover { opacity: 1; text-decoration: underline; text-shadow: var(--glow); }
 
         .filter-tag { display: inline-flex; align-items: center; background: var(--tag-bg); padding: 2px 8px; margin: 2px; font-size: 0.8em; border-radius: 4px; }
         .remove-tag { margin-left: 5px; cursor: pointer; color: #ff4141; font-weight: bold; }
 
-        .fab-btn { position: fixed; bottom: 70px; right: 20px; width: 60px; height: 60px; background: var(--fab-bg); color: var(--fab-text); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.5); cursor: pointer; z-index: 1500; transition: 0.2s; }
+        .fab-btn { position: fixed; bottom: 75px; right: 20px; width: 60px; height: 60px; background: var(--fab-bg); color: var(--fab-text); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; box-shadow: 0 0 10px rgba(0,0,0,0.5); cursor: pointer; z-index: 1500; transition: 0.2s; }
         .fab-btn:hover { transform: scale(1.1); box-shadow: var(--glow); }
 
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; justify-content: center; align-items: flex-start; padding-top: 100px; backdrop-filter: blur(3px); }
@@ -191,49 +208,12 @@
         #reply-context-bar { background-color: var(--reply-indicator); padding: 10px; margin-bottom: 10px; font-size: 0.8em; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid var(--text-color); }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* ZAP MODAL STYLES (SNORT STYLE) */
-        .zap-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .zap-preset {
-            background: var(--input-bg);
-            border: 1px solid #F7931A;
-            color: #F7931A;
-            padding: 10px 0;
-            text-align: center;
-            cursor: pointer;
-            font-weight: bold;
-            border-radius: 4px;
-            transition: 0.2s;
-        }
-
-        .zap-preset:hover {
-            background: #F7931A;
-            color: #fff;
-        }
-
-        .zap-preset.selected {
-            background: #F7931A;
-            color: #fff;
-            box-shadow: 0 0 10px #F7931A;
-        }
-
-        #zap-amount-display {
-            text-align: center;
-            font-size: 2em;
-            color: #F7931A;
-            margin: 10px 0;
-            font-family: monospace;
-        }
-
-        .sats-label {
-            font-size: 0.5em;
-            color: var(--meta-color);
-        }
+        /* ZAP MODAL STYLES */
+        .zap-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+        .zap-preset { background: var(--input-bg); border: 1px solid #F7931A; color: #F7931A; padding: 10px 0; text-align: center; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; }
+        .zap-preset:hover { background: #F7931A; color: #fff; }
+        #zap-amount-display { text-align: center; font-size: 2em; color: #F7931A; margin: 10px 0; font-family: monospace; }
+        .sats-label { font-size: 0.5em; color: var(--meta-color); }
     </style>
 </head>
 <body>
@@ -395,7 +375,7 @@
             <div id="thread-replies-container">Loading replies...</div>
         </div>
         
-        <!-- 9. TRENDING PANEL (Replaces Bookmarks in UI flow) -->
+        <!-- 9. TRENDING PANEL -->
         <div id="panel-trending" class="dropdown-panel hidden">
             <h3>>> TRENDING NOW</h3>
             <div style="font-size:0.8em; opacity:0.7; margin-bottom:10px;">Source: trending.relays.land</div>
@@ -403,7 +383,7 @@
             <div id="trending-feed">Loading trending notes...</div>
         </div>
 
-        <!-- 10. BOOKMARKS PANEL (Hidden, accessible via logic if needed) -->
+        <!-- 10. BOOKMARKS PANEL -->
         <div id="panel-bookmarks" class="dropdown-panel hidden">
              <h3>>> SAVED BOOKMARKS</h3>
              <button class="small secondary" onclick="openBookmarks()" style="margin-bottom:10px;">REFRESH LIST</button>
@@ -480,14 +460,14 @@
     </div>
 
     <script>
-        // UPDATED RELAY LIST
+        // RELAY LIST
         const defaultRelays = [
             'wss://relay.damus.io', 
             'wss://relay.primal.net', 
             'wss://nos.lol', 
             'wss://relay.mostr.pub',
-            'wss://purplepag.es', // Index relay
-            'wss://trending.relays.land' // Trending source
+            'wss://purplepag.es', // Index
+            'wss://trending.relays.land' // Trending
         ];
         
         let savedRelays;
@@ -572,16 +552,13 @@
             document.getElementById('trending-feed').innerHTML = "Loading trending notes from relays.land...";
             trendingEvents = [];
             
-            // Check if we are connected to the trending relay
             const trendingUrl = 'wss://trending.relays.land';
             let sent = false;
 
             if (sockets[trendingUrl] && sockets[trendingUrl].readyState === 1) {
-                // Fetch last 20 trending notes (usually kinds: 1)
                 sockets[trendingUrl].send(JSON.stringify(["REQ", "trending_sub", { kinds: [1], limit: 40 }]));
                 sent = true;
             } else {
-                // Try to connect specifically for this
                 const ws = new WebSocket(trendingUrl);
                 sockets[trendingUrl] = ws;
                 ws.onopen = () => {
@@ -593,16 +570,13 @@
                 };
                 sent = true;
             }
-
             if(!sent) document.getElementById('trending-feed').innerHTML = "Connection to trending relay failed.";
         }
 
         function handleTrendingEvent(ev) {
             if (trendingEvents.some(e => e.id === ev.id)) return;
             trendingEvents.push(ev);
-            // Trending sort usually implied by relay, but we ensure it
             trendingEvents.sort((a,b) => b.created_at - a.created_at);
-            
             document.getElementById('trending-feed').innerHTML = trendingEvents.map(generatePostHTML).join('');
             fetchProfileIfNeeded(ev.pubkey);
         }
@@ -1157,7 +1131,6 @@
                 if(sockets[url] && sockets[url].readyState <= 1) return;
                 const ws = new WebSocket(url); sockets[url] = ws;
                 ws.onopen = () => { 
-                    // Only request global feed from standard relays (avoid spamming index/trending relays)
                     if (!url.includes('purplepag.es') && !url.includes('trending.relays.land')) {
                          ws.send(JSON.stringify(["REQ", "g", { kinds:[1,6], limit:40 }])); 
                     }
@@ -1322,7 +1295,6 @@
             if (!amount || amount <= 0) return alert("Invalid amount");
             if (!zapContext) return;
 
-            // NWC placeholder check
             if (nwcString.startsWith("nostr+walletconnect")) {
                 alert("NWC string found! In a full implementation, this would trigger a background payment using your NWC secret. For this template, we will fall back to Invoice method.");
             }
