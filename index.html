@@ -187,10 +187,10 @@
             justify-content: center; 
             align-items: center;
             gap: 6px; 
-            z-index: 1200; /* Higher than content, lower than FAB/Modal */
+            z-index: 1200;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.5); 
             font-family: inherit; 
-            transform: translateZ(0); /* Hardware acceleration */
+            transform: translateZ(0);
         }
         .footer-item { font-size: 0.85em; cursor: pointer; text-align: center; transition: 0.3s; color: var(--text-color); text-decoration: none; opacity: 0.7; }
         .footer-item:hover { opacity: 1; text-decoration: underline; text-shadow: var(--glow); }
@@ -527,6 +527,12 @@
         document.getElementById('nsfw-toggle').checked = filterSettings.hideNsfw;
         renderFilterList();
 
+        function formatSats(sats) {
+            if (sats >= 1000000) return (sats / 1000000).toFixed(1) + 'M';
+            if (sats >= 1000) return (sats / 1000).toFixed(1) + 'k';
+            return sats;
+        }
+
         function goHome() {
             ['panel-relays', 'panel-identity', 'panel-my-profile', 'panel-user-profile', 'panel-settings', 'panel-search', 'panel-notifications', 'panel-thread', 'panel-trending', 'panel-bookmarks'].forEach(p => document.getElementById(p).classList.add('hidden'));
             document.getElementById('feed-container').classList.remove('hidden');
@@ -787,6 +793,7 @@
         function handleNotifEvent(ev) {
             if (notifEvents.some(e => e.id === ev.id)) return;
             if (ev.kind === 9735) {
+                // Pre-process for description/sender
                 const descTag = ev.tags.find(t => t[0] === 'description');
                 if (descTag) {
                     try {
@@ -823,22 +830,26 @@
                      let targetId = null;
                      const eTag = ev.tags.find(t => t[0] === 'e');
                      if (eTag) targetId = eTag[1];
+                     
+                     // Improved Amount Parsing logic
                      const descTag = ev.tags.find(t => t[0] === 'description');
                      if (descTag) {
                         try {
                             const request = JSON.parse(descTag[1]);
-                            senderPubkey = request.pubkey;
+                            senderPubkey = request.pubkey; // Real sender is in the request
+                            // Check for 'amount' in tags (millisats)
                             const amountTag = request.tags.find(t => t[0] === 'amount');
                             if(amountTag) amountSats = Math.floor(parseInt(amountTag[1]) / 1000);
                         } catch(e) {}
                      }
+
                      const p = (profiles[senderPubkey] && profiles[senderPubkey].meta) ? profiles[senderPubkey].meta : {name: senderPubkey.substring(0,6)};
                      const snippet = targetId ? findTargetContent(targetId) : null;
                      return `
                      <div class="notif-item" onclick="${targetId ? `viewThread('${targetId}')` : ''}" style="cursor:pointer;">
                         ${p.picture ? `<img src="${p.picture}" class="avatar" style="margin-right:15px;">` : '<span class="notif-icon" style="color:#F7931A;">⚡</span>'}
                         <div style="flex-grow:1;">
-                            <div style="font-weight:bold; color:#F7931A; font-size:1.1em;">+${amountSats} sats</div>
+                            <div style="font-weight:bold; color:#F7931A; font-size:1.1em;">+${formatSats(amountSats)} sats</div>
                             <div style="font-size:0.9em;">
                                 from <span style="font-weight:bold; color:var(--text-color);">${p.name || senderPubkey.substring(0,6)}</span>
                             </div>
@@ -1108,16 +1119,23 @@
             const pk = ev.pubkey;
             initProfileData(pk);
             if (ev.kind === 0) { try { profiles[pk].meta = JSON.parse(ev.content); } catch(e) {} }
+            
+            // REFACTORED FOLLOWER/FOLLOWING LOGIC (Kind 3)
             if (ev.kind === 3) {
-                if (isMe || pk === currentViewedProfile) {
-                     const following = ev.tags.filter(t => t[0] === 'p').map(t => t[1]);
-                     profiles[pk].following = new Set(following);
-                     if (isMe) myContacts = new Set(following); 
-                } else {
-                    const target = isMe ? myPubKey : currentViewedProfile;
-                    if (target) {
-                        const followsTarget = ev.tags.some(t => t[0] === 'p' && t[1] === target);
-                        if (followsTarget) { initProfileData(target); profiles[target].followers.add(pk); }
+                const contacts = new Set(ev.tags.filter(t => t[0] === 'p').map(t => t[1]));
+
+                // 1. If this is the Kind 3 of the person we are viewing (or me), update WHO THEY FOLLOW
+                profiles[pk].following = contacts;
+                if (isMe) myContacts = contacts;
+
+                // 2. If we are currently viewing a profile, check if THIS event (by someone else) includes the viewed profile
+                // This builds the "Followers" list based on incoming events from others.
+                if (currentViewedProfile && pk !== currentViewedProfile) {
+                    if (contacts.has(currentViewedProfile)) {
+                        profiles[currentViewedProfile].followers.add(pk);
+                    } else {
+                        // If they sent a new kind 3 and removed the viewed user
+                        profiles[currentViewedProfile].followers.delete(pk);
                     }
                 }
             }
@@ -1148,7 +1166,9 @@
                         const ev = data[2];
                         processEventStats(ev); 
                         if (subId === 'my_meta' || subId === 'user_meta') processProfileEvent(ev, subId === 'my_meta');
-                        if (subId === 'my_followers' || subId === 'user_followers') processProfileEvent(ev, subId === 'my_followers'); 
+                        // Both my_followers and user_followers are kind 3 events from OTHER people tagging the user
+                        if (subId === 'my_followers' || subId === 'user_followers') processProfileEvent(ev, false); 
+                        
                         if (subId === 'g') handleGlobalEvent(ev);
                         if (subId === 'sub_me') handleMyEvent(ev);
                         if (subId === 'sub_user') handleUserEvent(ev);
@@ -1368,9 +1388,52 @@
         }
         /* --- END ZAP LOGIC --- */
 
-        function processEventStats(ev) { if (!ev || !ev.tags) return; const eTags = ev.tags.filter(t => t[0] === 'e'); eTags.forEach(t => { const targetId = t[1]; if (!eventStats[targetId]) eventStats[targetId] = { reply:0, repost:0, like:0, zap:0 }; if (ev.kind === 1) eventStats[targetId].reply++; if (ev.kind === 6) eventStats[targetId].repost++; if (ev.kind === 7) eventStats[targetId].like++; if (ev.kind === 9735) eventStats[targetId].zap++; updateCountDOM(targetId, 'reply'); updateCountDOM(targetId, 'repost'); updateCountDOM(targetId, 'like'); updateCountDOM(targetId, 'zap'); }); }
-        function updateCountDOM(id, type) { const el = document.getElementById(`s-${type}-${id}`); if (el && eventStats[id]) { el.innerText = eventStats[id][type]; } }
-        async function doLike(id, pubkey) { if(!myPubKey) return alert("Login first"); likedPosts.add(id); localStorage.setItem('mbit_likes', JSON.stringify([...likedPosts])); if(!eventStats[id]) eventStats[id] = { reply:0, repost:0, like:0, zap:0 }; eventStats[id].like++; updateCountDOM(id, 'like'); if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); if(!document.getElementById('panel-thread').classList.contains('hidden')) viewThread(currentThreadId); const event = { kind: 7, created_at: Math.floor(Date.now()/1000), tags: [['e', id], ['p', pubkey]], content: "+", pubkey: myPubKey }; await signAndBroadcast(event); }
+        function processEventStats(ev) { 
+            if (!ev || !ev.tags) return; 
+            const eTags = ev.tags.filter(t => t[0] === 'e'); 
+            
+            // Check for Zap Amount
+            let zapSats = 0;
+            if (ev.kind === 9735) {
+                try {
+                    const desc = ev.tags.find(t => t[0] === 'description');
+                    if(desc) {
+                        const inner = JSON.parse(desc[1]);
+                        const amtTag = inner.tags.find(t => t[0] === 'amount');
+                        if(amtTag) zapSats = Math.floor(parseInt(amtTag[1]) / 1000);
+                    }
+                } catch(e) {}
+            }
+
+            eTags.forEach(t => { 
+                const targetId = t[1]; 
+                if (!eventStats[targetId]) eventStats[targetId] = { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; 
+                
+                if (ev.kind === 1) eventStats[targetId].reply++; 
+                if (ev.kind === 6) eventStats[targetId].repost++; 
+                if (ev.kind === 7) eventStats[targetId].like++; 
+                if (ev.kind === 9735) {
+                    eventStats[targetId].zap++; 
+                    eventStats[targetId].zapAmount += zapSats;
+                }
+                updateCountDOM(targetId, 'reply'); 
+                updateCountDOM(targetId, 'repost'); 
+                updateCountDOM(targetId, 'like'); 
+                updateCountDOM(targetId, 'zap'); 
+            }); 
+        }
+
+        function updateCountDOM(id, type) { 
+            const el = document.getElementById(`s-${type}-${id}`); 
+            if (el && eventStats[id]) { 
+                if(type === 'zap' && eventStats[id].zapAmount > 0) {
+                     el.innerText = formatSats(eventStats[id].zapAmount);
+                } else {
+                     el.innerText = eventStats[id][type]; 
+                }
+            } 
+        }
+        async function doLike(id, pubkey) { if(!myPubKey) return alert("Login first"); likedPosts.add(id); localStorage.setItem('mbit_likes', JSON.stringify([...likedPosts])); if(!eventStats[id]) eventStats[id] = { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; eventStats[id].like++; updateCountDOM(id, 'like'); if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); if(!document.getElementById('panel-thread').classList.contains('hidden')) viewThread(currentThreadId); const event = { kind: 7, created_at: Math.floor(Date.now()/1000), tags: [['e', id], ['p', pubkey]], content: "+", pubkey: myPubKey }; await signAndBroadcast(event); }
 
         function generatePostHTML(ev) { 
             if (isBlocked(ev)) return ''; 
@@ -1378,8 +1441,13 @@
             let content = ev.content; if (ev.kind === 6) try { content = JSON.parse(ev.content).content || "[Repost]"; } catch(e) { content = "[Repost]"; } 
             const likeClass = likedPosts.has(ev.id) ? 'act-btn active' : 'act-btn'; 
             const bookmarkClass = bookmarks.has(ev.id) ? 'act-btn bookmark-btn active' : 'act-btn bookmark-btn'; 
-            const s = eventStats[ev.id] || { reply:0, repost:0, like:0, zap:0 }; 
-            return `<div class="post"> <div class="meta" onclick="viewProfile('${ev.pubkey}')"> ${p.picture?`<img src="${p.picture}" class="avatar">`:''} <span class="username-link">${p.display_name || p.name || ev.pubkey.substring(0,6)}</span> <span style="margin-left:5px; opacity:0.5;">• ${new Date(ev.created_at*1000).toLocaleTimeString()}</span> </div> <div class="content" onclick="viewThread('${ev.id}')">${parseContent(content)}</div> <div class="actions"> <button class="act-btn" onclick="initReply('${ev.id}', '${ev.pubkey}')">#REPLY <span id="s-reply-${ev.id}">${s.reply}</span></button> <button class="act-btn" onclick="initQuote('${ev.id}')">#SHARE <span id="s-repost-${ev.id}">${s.repost}</span></button> <button class="${likeClass} act-btn" onclick="doLike('${ev.id}', '${ev.pubkey}')">#LIKE <span id="s-like-${ev.id}">${s.like}</span></button> <button class="act-btn zap-btn" onclick="handleZap('${p.lud16}', '${ev.pubkey}', '${ev.id}')">#ZAP ⚡ <span id="s-zap-${ev.id}">${s.zap}</span></button> <button class="${bookmarkClass}" onclick="doBookmark('${ev.id}')">#MARK</button> </div> </div>`; 
+            const s = eventStats[ev.id] || { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; 
+            
+            // Format Zap display
+            let zapDisplay = s.zap;
+            if(s.zapAmount > 0) zapDisplay = formatSats(s.zapAmount);
+
+            return `<div class="post"> <div class="meta" onclick="viewProfile('${ev.pubkey}')"> ${p.picture?`<img src="${p.picture}" class="avatar">`:''} <span class="username-link">${p.display_name || p.name || ev.pubkey.substring(0,6)}</span> <span style="margin-left:5px; opacity:0.5;">• ${new Date(ev.created_at*1000).toLocaleTimeString()}</span> </div> <div class="content" onclick="viewThread('${ev.id}')">${parseContent(content)}</div> <div class="actions"> <button class="act-btn" onclick="initReply('${ev.id}', '${ev.pubkey}')">#REPLY <span id="s-reply-${ev.id}">${s.reply}</span></button> <button class="act-btn" onclick="initQuote('${ev.id}')">#SHARE <span id="s-repost-${ev.id}">${s.repost}</span></button> <button class="${likeClass} act-btn" onclick="doLike('${ev.id}', '${ev.pubkey}')">#LIKE <span id="s-like-${ev.id}">${s.like}</span></button> <button class="act-btn zap-btn" onclick="handleZap('${p.lud16}', '${ev.pubkey}', '${ev.id}')">#ZAP ⚡ <span id="s-zap-${ev.id}">${zapDisplay}</span></button> <button class="${bookmarkClass}" onclick="doBookmark('${ev.id}')">#MARK</button> </div> </div>`; 
         }
         function parseContent(text) { 
             if(!text) return ""; let content = text.replace(/</g, "&lt;").replace(/>/g, "&gt;"); 
