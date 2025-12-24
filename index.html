@@ -486,11 +486,10 @@
     <script>
         const defaultRelays = [
             'wss://relay.damus.io', 
-            'wss://relay.primal.net', 
+            'wss://relay.primal.net', // Removed cache1.primal.net
             'wss://nos.lol', 
             'wss://relay.mostr.pub', 
-            'wss://trending.relays.land',
-            'wss://cache1.primal.net' 
+            'wss://trending.relays.land'
         ];
         
         let savedRelays;
@@ -1141,10 +1140,18 @@
             try {
                 const ws = new WebSocket(url); sockets[url] = ws;
                 ws.onopen = () => { 
-                    ws.send(JSON.stringify(["REQ", "g", { kinds:[1,6], limit:40 }])); 
-                    if(myPubKey) {
-                        fetchProfile(myPubKey);
-                        ws.send(JSON.stringify(["REQ", "my_contacts", { kinds:[3], authors:[myPubKey], limit:1 }]));
+                    // SPECIAL HANDLING: If this is the directory relay (purplepag.es),
+                    // DO NOT subscribe to the global feed (Kind 1) to save bandwidth and avoid errors.
+                    // It will remain open for fetchProfile/search queries (Kind 0).
+                    if (url !== 'wss://purplepag.es') {
+                        ws.send(JSON.stringify(["REQ", "g", { kinds:[1,6], limit:40 }])); 
+                        if(myPubKey) {
+                            fetchProfile(myPubKey);
+                            ws.send(JSON.stringify(["REQ", "my_contacts", { kinds:[3], authors:[myPubKey], limit:1 }]));
+                        }
+                    } else {
+                        // For directory relay, we might still want to fetch our own profile if we just connected
+                        if(myPubKey) fetchProfile(myPubKey); 
                     }
                     renderRelays(); 
                 };
@@ -1180,7 +1187,7 @@
         function handleGlobalEvent(ev, sourceRelay) {
             // Mark relay source for filtering
             ev._relay = sourceRelay;
-            // UPDATE: Include Primal Cache as a Trending Source
+            // UPDATE: Include Primal Cache as a Trending Source (removed, but keeping logic just in case user adds it manually)
             const isTrendingSource = sourceRelay === 'wss://trending.relays.land' || sourceRelay === 'wss://cache1.primal.net';
 
             if (processedIds.has(ev.id)) {
@@ -1311,6 +1318,7 @@
             renderRelays(); // Update UI to show off temporarily
             setTimeout(() => {
                 savedRelays.forEach(connectToRelay);
+                connectToRelay('wss://purplepag.es'); // Ensure directory relay is reconnected
             }, 500);
         }
 
@@ -1599,7 +1607,12 @@
         }
 
         if (myPubKey) { document.getElementById('login-form').classList.add('hidden'); document.getElementById('user-info').classList.remove('hidden'); document.getElementById('display-npub').value = window.NostrTools.nip19.npubEncode(myPubKey); if (myPrivKey) document.getElementById('display-nsec').value = window.NostrTools.nip19.nsecEncode(myPrivKey); else document.getElementById('nsec-display-container').classList.add('hidden'); }
+        
+        // Init connections
         savedRelays.forEach(connectToRelay);
+        // Connect to directory relay in background
+        connectToRelay('wss://purplepag.es');
+        
         goHome();
     </script>
 </body>
