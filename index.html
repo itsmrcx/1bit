@@ -9,7 +9,6 @@
     <style>
         /* THEME VARIABLES */
         :root {
-            /* Default fallback (Dark) - overridden by JS immediately if needed */
             --bg-color: #ffffff;
             --text-color: #000000;
             --panel-bg: #f5f5f5;
@@ -71,7 +70,6 @@
         }
 
         [data-theme="light"] {
-            /* Explicit light variables */
             --bg-color: #ffffff;
             --text-color: #000000;
             --panel-bg: #f5f5f5;
@@ -178,7 +176,46 @@
         .profile-card .nip05 { font-size: 0.8em; color: #3498db; }
         .profile-card .about { font-size: 0.8em; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* ACTION BUTTONS & COUNTERS */
+        /* --- PROFILE ACTIONS (FOLLOW/ZAP) SPECIFIC --- */
+        .profile-actions-row { 
+            display: flex; 
+            justify-content: center; 
+            gap: 15px; 
+            margin: 20px auto; 
+            max-width: 400px;
+            width: 100%;
+        }
+        .profile-actions-row button {
+            border: 1px solid var(--text-color) !important; /* Override no-border */
+            padding: 12px;
+            flex: 1;
+            text-align: center;
+            justify-content: center;
+            background: transparent;
+            color: var(--text-color);
+            transition: 0.2s;
+            font-weight: bold;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .profile-actions-row button:hover {
+            background: var(--text-color);
+            color: var(--bg-color);
+            transform: scale(1.02);
+        }
+        /* Zap Button in Profile */
+        .profile-actions-row .zap-btn {
+            border-color: #F7931A !important;
+            color: #F7931A !important;
+        }
+        .profile-actions-row .zap-btn:hover {
+            background: #F7931A !important;
+            color: #fff !important;
+        }
+
+        /* FEED ACTION BUTTONS & COUNTERS */
         .actions { 
             margin-top: 15px; 
             font-size: 0.8em; 
@@ -211,9 +248,10 @@
         .act-btn.active svg { fill: #e0245e; stroke: #e0245e; }
         .act-btn.active { color: #e0245e; }
         
-        .zap-btn { color: #F7931A !important; }
-        .zap-btn:hover { color: #fff !important; }
-        .zap-btn svg { fill: currentColor; stroke: none; }
+        /* This is for Feed Zaps */
+        .actions .zap-btn { color: #F7931A !important; }
+        .actions .zap-btn:hover { color: #fff !important; }
+        .actions .zap-btn svg { fill: currentColor; stroke: none; }
 
         /* REACTION PICKER (PILL) */
         .reaction-bar {
@@ -257,8 +295,7 @@
         .hidden { display: none !important; }
 
         .profile-detail-box { margin: 10px 0; padding: 10px; border: 1px dotted var(--post-border); text-align: center; }
-        .profile-actions-row { display: flex; gap: 10px; margin: 15px 0; width: 100%; }
-        .profile-actions-row button { flex: 1; padding: 10px; }
+        
         .profile-stats-row { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
         .stat-box { flex: 1; border: 1px solid var(--text-color); background: var(--input-bg); color: var(--text-color); padding: 8px 5px; text-align: center; font-size: 0.75em; cursor: pointer; font-weight: bold; }
         .stat-box:hover, .stat-box.active { background: var(--text-color); color: var(--bg-color); }
@@ -1184,9 +1221,19 @@
             const npub = window.NostrTools.nip19.npubEncode(pubkey);
             let followBtn = '';
             if (!isMe && myPubKey) {
-                followBtn = isFollowing ? `<button class="secondary act-btn" onclick="toggleFollow('${pubkey}')">#UNFOLLOW</button>` : `<button class="act-btn" onclick="toggleFollow('${pubkey}')">#FOLLOW</button>`;
-            } else if (isMe) { followBtn = `<button class="secondary act-btn" onclick="togglePanel('panel-my-profile')">#EDIT</button>`; }
-            let zapBtn = ''; if (p.lud16) zapBtn = `<button class="zap-active act-btn zap-btn" onclick="handleZap('${p.lud16}', '${pubkey}', null)">⚡ #ZAP</button>`;
+                // Simplified class names to avoid feed style conflict, relying on .profile-actions-row CSS
+                followBtn = isFollowing 
+                    ? `<button onclick="toggleFollow('${pubkey}')">#UNFOLLOW</button>` 
+                    : `<button onclick="toggleFollow('${pubkey}')">#FOLLOW</button>`;
+            } else if (isMe) { 
+                followBtn = `<button onclick="togglePanel('panel-my-profile')">#EDIT</button>`; 
+            }
+            
+            let zapBtn = ''; 
+            if (p.lud16) {
+                zapBtn = `<button class="zap-btn" onclick="handleZap('${p.lud16}', '${pubkey}', null)">⚡ #ZAP</button>`;
+            }
+            
             const html = `
                 ${p.picture?`<img src="${p.picture}" class="p-img-large">`:'<div style="font-size:3rem">?</div>'}
                 <h2>${p.display_name || p.name || pubkey.substring(0,8)}</h2>
