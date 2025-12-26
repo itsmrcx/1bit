@@ -70,7 +70,7 @@
             font-family: "Courier New", Courier, monospace;
             font-size: var(--base-font-size);
             padding: 20px; 
-            padding-bottom: 90px; /* Extra padding for sticky footer */
+            padding-bottom: 90px; 
             margin: 0; 
             min-height: 100vh;
             transition: font-size 0.2s ease;
@@ -133,14 +133,14 @@
         .profile-card .nip05 { font-size: 0.8em; color: #3498db; }
         .profile-card .about { font-size: 0.8em; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* UPDATED ACTION BUTTONS FOR ICONS */
+        /* ACTION BUTTONS */
         .actions { 
             margin-top: 15px; 
             font-size: 0.8em; 
             display: flex; 
             flex-direction: row; 
             flex-wrap: wrap; 
-            gap: 20px; /* Space between icons */
+            gap: 20px; 
             border-top: 1px dotted var(--post-border); 
             padding-top: 12px; 
         }
@@ -148,9 +148,9 @@
         .act-btn { 
             width: auto !important; 
             margin-bottom: 0 !important; 
-            background: transparent !important; /* No background */
+            background: transparent !important; 
             color: var(--meta-color); 
-            border: none !important; /* No border */
+            border: none !important; 
             padding: 5px; 
             cursor: pointer; 
             display: flex;
@@ -179,6 +179,32 @@
         .zap-btn { color: #F7931A !important; }
         .zap-btn:hover { color: #fff !important; }
         .zap-btn svg { fill: currentColor; stroke: none; }
+
+        /* REACTION PICKER (PILL) STYLE */
+        .reaction-bar {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: #222;
+            border: 1px solid var(--text-color);
+            border-radius: 50px;
+            padding: 15px 25px;
+            display: flex; 
+            gap: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+            z-index: 2500;
+            animation: zoomIn 0.2s;
+        }
+        
+        [data-theme="light"] .reaction-bar { background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+
+        .reaction-emoji { 
+            font-size: 1.8rem; 
+            cursor: pointer; 
+            transition: transform 0.2s; 
+            user-select: none;
+        }
+        .reaction-emoji:hover { transform: scale(1.4); }
 
         #new-btn { width: 100%; padding: 15px; background: var(--btn-bg); color: var(--btn-text); font-weight: bold; text-align: center; cursor: pointer; margin-bottom: 20px; border: 2px solid var(--border-color); animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
@@ -450,6 +476,20 @@
         </div>
     </div>
 
+    <!-- REACTION PICKER (PILL) -->
+    <div id="reaction-picker-overlay" class="modal-overlay hidden" onclick="closeReactionPicker()">
+        <div class="reaction-bar" onclick="event.stopPropagation()">
+            <span class="reaction-emoji" onclick="sendReaction('🤙')">🤙</span>
+            <span class="reaction-emoji" onclick="sendReaction('❤️')">❤️</span>
+            <span class="reaction-emoji" onclick="sendReaction('👍')">👍</span>
+            <span class="reaction-emoji" onclick="sendReaction('😂')">😂</span>
+            <span class="reaction-emoji" onclick="sendReaction('😢')">😢</span>
+            <span class="reaction-emoji" onclick="sendReaction('🔥')">🔥</span>
+            <span class="reaction-emoji" onclick="sendReaction('🚀')">🚀</span>
+            <span class="reaction-emoji" onclick="sendReaction('+')">➕</span>
+        </div>
+    </div>
+
     <!-- ZAP MODAL (SNORT STYLE) -->
     <div id="zap-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 400px;">
@@ -531,6 +571,7 @@
         let myPrivKey = localStorage.getItem('nostr_privkey'), myPubKey = localStorage.getItem('nostr_pubkey'), authMode = localStorage.getItem('nostr_mode');
         
         let replyContext = null;
+        let reactionContext = null;
         let currentViewedProfile = null;
         let currentThreadId = null;
         let currentThreadRootId = null; 
@@ -1423,6 +1464,47 @@
         }
         /* --- END ZAP LOGIC --- */
 
+        /* --- REACTION LOGIC --- */
+        function openReactionPicker(id, pubkey) {
+            if(!myPubKey) return alert("Login first");
+            reactionContext = { id, pubkey };
+            document.getElementById('reaction-picker-overlay').classList.remove('hidden');
+        }
+
+        function closeReactionPicker() {
+            document.getElementById('reaction-picker-overlay').classList.add('hidden');
+            reactionContext = null;
+        }
+
+        async function sendReaction(content) {
+            if (!reactionContext) return;
+            const { id, pubkey } = reactionContext;
+
+            // Track locally for immediate UI feedback (optional, using likedPosts set)
+            likedPosts.add(id); 
+            localStorage.setItem('mbit_likes', JSON.stringify([...likedPosts]));
+            
+            if(!eventStats[id]) eventStats[id] = { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; 
+            eventStats[id].like++; 
+            updateCountDOM(id, 'like'); 
+            
+            closeReactionPicker();
+
+            const event = { 
+                kind: 7, 
+                created_at: Math.floor(Date.now()/1000), 
+                tags: [['e', id], ['p', pubkey]], 
+                content: content, // The specific emoji
+                pubkey: myPubKey 
+            }; 
+            await signAndBroadcast(event);
+            
+            // Refresh view if needed
+            if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); 
+            if(!document.getElementById('panel-thread').classList.contains('hidden')) viewThread(currentThreadId);
+        }
+        /* --- END REACTION LOGIC --- */
+
         function processEventStats(ev) { 
             if (!ev || !ev.tags) return; 
             const eTags = ev.tags.filter(t => t[0] === 'e'); 
@@ -1468,7 +1550,6 @@
                 }
             } 
         }
-        async function doLike(id, pubkey) { if(!myPubKey) return alert("Login first"); likedPosts.add(id); localStorage.setItem('mbit_likes', JSON.stringify([...likedPosts])); if(!eventStats[id]) eventStats[id] = { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; eventStats[id].like++; updateCountDOM(id, 'like'); if(!document.getElementById('feed-container').classList.contains('hidden')) renderGlobalFeed(); if(!document.getElementById('panel-thread').classList.contains('hidden')) viewThread(currentThreadId); const event = { kind: 7, created_at: Math.floor(Date.now()/1000), tags: [['e', id], ['p', pubkey]], content: "+", pubkey: myPubKey }; await signAndBroadcast(event); }
 
         function generatePostHTML(ev) { 
             if (isBlocked(ev)) return ''; 
@@ -1503,9 +1584,9 @@
                         <span id="s-repost-${ev.id}">${s.repost || ''}</span>
                     </button> 
                     
-                    <!-- REACTION (HEART) ICON -->
-                    <button class="${likeClass} act-btn" onclick="doLike('${ev.id}', '${ev.pubkey}')" title="React">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    <!-- SMILEY REACTION PICKER TRIGGER -->
+                    <button class="${likeClass} act-btn" onclick="openReactionPicker('${ev.id}', '${ev.pubkey}')" title="React">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
                         <span id="s-like-${ev.id}">${s.like || ''}</span>
                     </button> 
                     
@@ -1514,8 +1595,6 @@
                         <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
                         <span id="s-zap-${ev.id}">${zapDisplay}</span>
                     </button> 
-                    
-                    <!-- MARK BUTTON REMOVED -->
                 </div> 
             </div>`; 
         }
