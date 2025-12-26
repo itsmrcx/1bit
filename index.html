@@ -133,17 +133,52 @@
         .profile-card .nip05 { font-size: 0.8em; color: #3498db; }
         .profile-card .about { font-size: 0.8em; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .actions { margin-top: 15px; font-size: 0.8em; display: flex; flex-direction: row; flex-wrap: wrap; gap: 10px; border-top: 1px dotted var(--post-border); padding-top: 12px; }
-        .act-btn { width: auto !important; margin-bottom: 0 !important; flex-grow: 1; background: transparent; color: var(--text-color); border: 1.5px solid var(--text-color); padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 0.9em; font-weight: bold; text-transform: uppercase; border-radius: 0; transition: 0.2s; white-space: nowrap; text-align: center; }
-        .act-btn:hover { background: var(--text-color); color: var(--bg-color); }
-        .act-btn.active { background: var(--text-color) !important; color: var(--bg-color) !important; }
+        /* UPDATED ACTION BUTTONS FOR ICONS */
+        .actions { 
+            margin-top: 15px; 
+            font-size: 0.8em; 
+            display: flex; 
+            flex-direction: row; 
+            flex-wrap: wrap; 
+            gap: 20px; /* Space between icons */
+            border-top: 1px dotted var(--post-border); 
+            padding-top: 12px; 
+        }
         
-        .zap-btn { color: #F7931A; border-color: var(--text-color) !important; }
-        .zap-btn:hover { background: #F7931A; color: #fff; border-color: #F7931A !important; }
-        .bookmark-btn { color: var(--text-color); border-color: var(--text-color) !important; }
-        .bookmark-btn:hover { background: var(--text-color); color: var(--bg-color); }
-        .bookmark-btn.active { background: var(--text-color) !important; color: var(--bg-color) !important; }
-        button.zap-active { background: #F7931A; color: #fff; border: 1px solid #F7931A; }
+        .act-btn { 
+            width: auto !important; 
+            margin-bottom: 0 !important; 
+            background: transparent !important; /* No background */
+            color: var(--meta-color); 
+            border: none !important; /* No border */
+            padding: 5px; 
+            cursor: pointer; 
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: 0.2s; 
+        }
+
+        .act-btn:hover { 
+            transform: scale(1.1);
+            color: var(--text-color); 
+            box-shadow: none;
+        }
+
+        .act-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke-width: 2;
+            fill: none;
+            stroke: currentColor;
+        }
+
+        .act-btn.active svg { fill: #e0245e; stroke: #e0245e; }
+        .act-btn.active { color: #e0245e; }
+        
+        .zap-btn { color: #F7931A !important; }
+        .zap-btn:hover { color: #fff !important; }
+        .zap-btn svg { fill: currentColor; stroke: none; }
 
         #new-btn { width: 100%; padding: 15px; background: var(--btn-bg); color: var(--btn-text); font-weight: bold; text-align: center; cursor: pointer; margin-bottom: 20px; border: 2px solid var(--border-color); animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
@@ -1429,7 +1464,7 @@
                 if(type === 'zap' && eventStats[id].zapAmount > 0) {
                      el.innerText = formatSats(eventStats[id].zapAmount);
                 } else {
-                     el.innerText = eventStats[id][type]; 
+                     el.innerText = eventStats[id][type] > 0 ? eventStats[id][type] : ''; 
                 }
             } 
         }
@@ -1440,14 +1475,49 @@
             const p = (profiles[ev.pubkey] && profiles[ev.pubkey].meta) ? profiles[ev.pubkey].meta : {name: ev.pubkey.substring(0,6)}; 
             let content = ev.content; if (ev.kind === 6) try { content = JSON.parse(ev.content).content || "[Repost]"; } catch(e) { content = "[Repost]"; } 
             const likeClass = likedPosts.has(ev.id) ? 'act-btn active' : 'act-btn'; 
-            const bookmarkClass = bookmarks.has(ev.id) ? 'act-btn bookmark-btn active' : 'act-btn bookmark-btn'; 
             const s = eventStats[ev.id] || { reply:0, repost:0, like:0, zap:0, zapAmount: 0 }; 
             
             // Format Zap display
-            let zapDisplay = s.zap;
+            let zapDisplay = "";
             if(s.zapAmount > 0) zapDisplay = formatSats(s.zapAmount);
 
-            return `<div class="post"> <div class="meta" onclick="viewProfile('${ev.pubkey}')"> ${p.picture?`<img src="${p.picture}" class="avatar">`:''} <span class="username-link">${p.display_name || p.name || ev.pubkey.substring(0,6)}</span> <span style="margin-left:5px; opacity:0.5;">• ${new Date(ev.created_at*1000).toLocaleTimeString()}</span> </div> <div class="content" onclick="viewThread('${ev.id}')">${parseContent(content)}</div> <div class="actions"> <button class="act-btn" onclick="initReply('${ev.id}', '${ev.pubkey}')">#REPLY <span id="s-reply-${ev.id}">${s.reply}</span></button> <button class="act-btn" onclick="initQuote('${ev.id}')">#SHARE <span id="s-repost-${ev.id}">${s.repost}</span></button> <button class="${likeClass} act-btn" onclick="doLike('${ev.id}', '${ev.pubkey}')">#LIKE <span id="s-like-${ev.id}">${s.like}</span></button> <button class="act-btn zap-btn" onclick="handleZap('${p.lud16}', '${ev.pubkey}', '${ev.id}')">#ZAP ⚡ <span id="s-zap-${ev.id}">${zapDisplay}</span></button> <button class="${bookmarkClass}" onclick="doBookmark('${ev.id}')">#MARK</button> </div> </div>`; 
+            // UPDATED HTML FOR ICONS
+            return `
+            <div class="post"> 
+                <div class="meta" onclick="viewProfile('${ev.pubkey}')"> 
+                    ${p.picture?`<img src="${p.picture}" class="avatar">`:''} 
+                    <span class="username-link">${p.display_name || p.name || ev.pubkey.substring(0,6)}</span> 
+                    <span style="margin-left:5px; opacity:0.5;">• ${new Date(ev.created_at*1000).toLocaleTimeString()}</span> 
+                </div> 
+                <div class="content" onclick="viewThread('${ev.id}')">${parseContent(content)}</div> 
+                <div class="actions"> 
+                    <!-- COMMENT ICON -->
+                    <button class="act-btn" onclick="initReply('${ev.id}', '${ev.pubkey}')" title="Comment">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        <span id="s-reply-${ev.id}">${s.reply || ''}</span>
+                    </button> 
+                    
+                    <!-- SHARE/QUOTE ICON -->
+                    <button class="act-btn" onclick="initQuote('${ev.id}')" title="Share/Quote">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                        <span id="s-repost-${ev.id}">${s.repost || ''}</span>
+                    </button> 
+                    
+                    <!-- REACTION (HEART) ICON -->
+                    <button class="${likeClass} act-btn" onclick="doLike('${ev.id}', '${ev.pubkey}')" title="React">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                        <span id="s-like-${ev.id}">${s.like || ''}</span>
+                    </button> 
+                    
+                    <!-- ZAP ICON -->
+                    <button class="act-btn zap-btn" onclick="handleZap('${p.lud16}', '${ev.pubkey}', '${ev.id}')" title="Zap">
+                        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+                        <span id="s-zap-${ev.id}">${zapDisplay}</span>
+                    </button> 
+                    
+                    <!-- MARK BUTTON REMOVED -->
+                </div> 
+            </div>`; 
         }
         function parseContent(text) { 
             if(!text) return ""; let content = text.replace(/</g, "&lt;").replace(/>/g, "&gt;"); 
